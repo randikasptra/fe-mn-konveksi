@@ -1,42 +1,45 @@
 // src/hooks/useAdminAuth.js
 import { useMutation } from "@tanstack/react-query";
 
-/**
- * Mock admin auth.
- * valid: admin@konveksi.test / password123
- */
-function loginFn({ email, password }) {
-  return new Promise((resolve, reject) => {
-    setTimeout(() => {
-      if (email === "admin@konveksi.test" && password === "password123") {
-        resolve({
-          token: "mock-admin-token-123",
-          user: { id: 1, name: "Admin Konveksi", email, role: "admin" },
-        });
-      } else {
-        reject({ message: "Email atau password admin salah" });
-      }
-    }, 700);
+const API_URL = "https://be-mn-konveksi.vercel.app/api";
+
+async function loginFn({ email, password }) {
+  const res = await fetch(`${API_URL}/auth/login`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
   });
+
+  const data = await res.json();
+
+  if (!res.ok) {
+    throw new Error(data.message || "Login gagal");
+  }
+
+  // SIMPAN TOKEN BACKEND ASLI
+  localStorage.setItem("mn_token", data.token);
+  localStorage.setItem("mn_user", JSON.stringify(data.user));
+
+  return data;
 }
 
 export default function useAdminAuth() {
-  // v5 syntax: pass an options object with mutationFn
   const m = useMutation({
     mutationFn: loginFn,
-    onSuccess: (data) => {
-      sessionStorage.setItem("auth_token", data.token);
-      sessionStorage.setItem("auth_user", JSON.stringify(data.user));
-    },
   });
 
   function logout() {
-    sessionStorage.removeItem("auth_token");
-    sessionStorage.removeItem("auth_user");
+    localStorage.removeItem("mn_token");
+    localStorage.removeItem("mn_user");
   }
 
   function isAuthenticated() {
-    return !!sessionStorage.getItem("auth_token");
+    return !!localStorage.getItem("mn_token");
+  }
+
+  function isAdmin() {
+    const user = JSON.parse(localStorage.getItem("mn_user") || "{}");
+    return user.role === "ADMIN";
   }
 
   return {
@@ -47,5 +50,6 @@ export default function useAdminAuth() {
     error: m.error,
     logout,
     isAuthenticated,
+    isAdmin,
   };
 }

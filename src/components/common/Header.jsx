@@ -1,152 +1,231 @@
-// src/components/common/Header.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { MagnifyingGlassIcon, Bars3Icon, XMarkIcon } from "@heroicons/react/24/outline";
+import {
+  MagnifyingGlassIcon,
+  Bars3Icon,
+  XMarkIcon,
+  ArrowRightOnRectangleIcon,
+  ShoppingBagIcon,
+} from "@heroicons/react/24/outline";
+
 import LoginModal from "./LoginModal";
+import RegisterModal from "./RegisterModal";
+
+const API_BASE = "https://be-mn-konveksi.vercel.app/api";
 
 export default function Header() {
   const navigate = useNavigate();
+  const cartRef = useRef(null);
+
   const [openUserLogin, setOpenUserLogin] = useState(false);
+  const [openRegister, setOpenRegister] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
 
-  // state untuk cek login
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [userName, setUserName] = useState("");
 
+  /* ===== KERANJANG ===== */
+  const [cartOpen, setCartOpen] = useState(false);
+  const [pendingOrders, setPendingOrders] = useState([]);
+  const [showToast, setShowToast] = useState(false);
+
+  /* ===================== AUTH CHECK ===================== */
   useEffect(() => {
-    // fungsi cek token
-    const check = () => {
+    const checkAuth = () => {
       const token = localStorage.getItem("mn_token");
-      setIsLoggedIn(!!token);
-    };
+      const userRaw = localStorage.getItem("mn_user");
 
-    // set awal
-    check();
-
-    // listener untuk event kustom authChanged
-    const onAuthChanged = () => {
-      check();
-    };
-    window.addEventListener("authChanged", onAuthChanged);
-
-    // juga dengarkan perubahan storage (multi-tab)
-    const onStorage = (e) => {
-      if (e.key === "mn_token" || e.key === "mn_user") {
-        check();
+      if (token && userRaw) {
+        const user = JSON.parse(userRaw);
+        setIsLoggedIn(true);
+        setUserName(user?.nama || "User");
+        fetchPendingOrders(token);
+      } else {
+        setIsLoggedIn(false);
+        setUserName("");
+        setPendingOrders([]);
       }
     };
-    window.addEventListener("storage", onStorage);
+
+    checkAuth();
+
+    window.addEventListener("authChanged", checkAuth);
+    window.addEventListener("storage", checkAuth);
 
     return () => {
-      window.removeEventListener("authChanged", onAuthChanged);
-      window.removeEventListener("storage", onStorage);
+      window.removeEventListener("authChanged", checkAuth);
+      window.removeEventListener("storage", checkAuth);
     };
   }, []);
 
-  // fungsi logout
+  /* ================= FETCH PESANAN ================= */
+  async function fetchPendingOrders(token) {
+    try {
+      const res = await fetch(`${API_BASE}/pesanan/me`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+
+      const json = await res.json();
+      if (!res.ok) return;
+
+      const pending = (json.data || []).filter((o) =>
+        ["MENUNGGU_DP", "MENUNGGU_PELUNASAN"].includes(o.status_pesanan)
+      );
+
+      setPendingOrders(pending);
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  /* ================= EVENT: PESANAN BARU ================= */
+  useEffect(() => {
+    function onOrderCreated() {
+      const token = localStorage.getItem("mn_token");
+      if (!token) return;
+
+      fetchPendingOrders(token);
+      setCartOpen(true);      // 🔥 buka popup otomatis
+      setShowToast(true);     // 🔔 tampilkan notifikasi
+
+      setTimeout(() => setShowToast(false), 3000);
+    }
+
+    window.addEventListener("orderCreated", onOrderCreated);
+    return () =>
+      window.removeEventListener("orderCreated", onOrderCreated);
+  }, []);
+
+  /* ================= CLOSE POPUP ================= */
+  useEffect(() => {
+    function handleClickOutside(e) {
+      if (cartRef.current && !cartRef.current.contains(e.target)) {
+        setCartOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () =>
+      document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  /* ================= LOGOUT ================= */
   function handleLogout() {
     localStorage.removeItem("mn_token");
     localStorage.removeItem("mn_user");
-
-    // beri tahu komponen lain supaya update juga
     window.dispatchEvent(new Event("authChanged"));
-
-    setIsLoggedIn(false);
     navigate("/", { replace: true });
   }
 
   return (
     <header className="bg-[#57595B] border-b border-gray-500 w-full">
+      {/* ================= TOP BAR ================= */}
       <div className="w-full px-4 md:px-6 py-3 flex items-center relative">
-        {/* BRAND */}
-        <Link
-          to="/"
-          className="text-2xl font-serif tracking-wider text-white drop-shadow-[0_0_1px_rgba(0,0,0,0.7)]"
-        >
+        <Link to="/" className="text-2xl font-serif text-white">
           MN KONVEKSI
         </Link>
 
-        {/* NAV */}
-        <nav className="flex-1 flex justify-center items-center">
-          <ul className="hidden md:flex gap-8 text-gray-200 text-sm">
-            <li><Link to="/" className="hover:text-white transition">Beranda</Link></li>
-            <li><Link to="/produk" className="hover:text-white transition">Produk</Link></li>
-            <li><Link to="/tentang" className="hover:text-white transition">Tentang</Link></li>
-            <li><Link to="/kontak" className="hover:text-white transition">Kontak</Link></li>
-          </ul>
+        <div className="flex-1" />
 
-          <div className="md:hidden text-gray-200 text-sm">Menu</div>
-        </nav>
-
-        {/* RIGHT BUTTONS */}
-        <div className="flex items-center gap-4">
-          <button
-            aria-label="Search"
-            className="p-1 rounded hover:bg-white/10 transition"
-            title="Cari"
-          >
-            <MagnifyingGlassIcon className="w-5 h-5 cursor-pointer text-gray-200 hover:text-white transition" />
-          </button>
-
-          {/* Login / Logout Button */}
+        <div className="flex items-center gap-4 text-gray-200 relative">
           {!isLoggedIn ? (
-            <button
-              onClick={() => setOpenUserLogin(true)}
-              className="text-sm text-gray-200 hover:text-white transition"
-            >
+            <button onClick={() => setOpenUserLogin(true)}>
               Login
             </button>
           ) : (
-            <button
-              onClick={handleLogout}
-              className="text-sm text-red-300 hover:text-red-500 font-semibold transition"
-            >
-              Logout
-            </button>
-          )}
+            <>
+              {/* 🛒 KERANJANG */}
+              <div className="relative" ref={cartRef}>
+                <button
+                  onClick={() => setCartOpen((v) => !v)}
+                  className="relative"
+                >
+                  <ShoppingBagIcon className="w-5 h-5" />
+                  {pendingOrders.length > 0 && (
+                    <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
+                      {pendingOrders.length}
+                    </span>
+                  )}
+                </button>
 
-          {/* mobile hamburger */}
-          <button
-            className="md:hidden p-1 rounded hover:bg-white/10 transition"
-            onClick={() => setMobileOpen(v => !v)}
-            aria-label="Open menu"
-          >
-            {mobileOpen ? (
-              <XMarkIcon className="w-6 h-6 text-gray-200" />
-            ) : (
-              <Bars3Icon className="w-6 h-6 text-gray-200" />
-            )}
-          </button>
+                {/* POPUP MINI */}
+                {cartOpen && (
+                  <div className="absolute right-0 mt-2 w-72 bg-white rounded-xl shadow-xl border z-50 text-gray-800">
+                    <div className="p-4 border-b font-semibold text-sm">
+                      Pesanan Masuk
+                    </div>
+
+                    {pendingOrders.length === 0 ? (
+                      <div className="p-4 text-sm text-gray-400">
+                        Tidak ada pesanan
+                      </div>
+                    ) : (
+                      <ul className="max-h-56 overflow-y-auto">
+                        {pendingOrders.map((o) => (
+                          <li
+                            key={o.id_pesanan}
+                            className="p-4 border-b text-sm"
+                          >
+                            <div className="font-medium">
+                              {o.produk?.nama_produk}
+                            </div>
+                            <div className="text-xs text-gray-500">
+                              Status: {o.status_pesanan.replaceAll("_", " ")}
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+
+                    <div className="p-3 border-t">
+                      <button
+                        onClick={() => navigate("/pesanan-saya")}
+                        className="w-full text-sm bg-black text-white py-2 rounded-lg"
+                      >
+                        Lihat Pesanan Saya
+                      </button>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <span className="text-sm">
+                Halo, <strong>{userName}</strong>
+              </span>
+
+              <button onClick={handleLogout}>
+                <ArrowRightOnRectangleIcon className="w-5 h-5" />
+              </button>
+            </>
+          )}
         </div>
       </div>
 
-      {/* mobile menu */}
-      <div
-        className={`md:hidden bg-[#5a5a5a] border-t border-gray-600 overflow-hidden transition-max-h duration-300 ${
-          mobileOpen ? "max-h-40" : "max-h-0"
-        }`}
-      >
-        <ul className="flex flex-col px-4 pb-3 pt-2 gap-2 text-gray-200">
-          <li><Link to="/" className="block py-2 hover:text-white">Beranda</Link></li>
-          <li><Link to="/produk" className="block py-2 hover:text-white">Produk</Link></li>
-          <li><Link to="/tentang" className="block py-2 hover:text-white">Tentang</Link></li>
-          <li><Link to="/kontak" className="block py-2 hover:text-white">Kontak</Link></li>
+      {/* 🔔 TOAST */}
+      {showToast && (
+        <div className="fixed top-20 right-6 bg-black text-white px-4 py-2 rounded-lg shadow-lg text-sm z-50">
+          ✅ Pesanan berhasil masuk ke keranjang
+        </div>
+      )}
 
-          {/* mobile logout button */}
-          {isLoggedIn && (
-            <li>
-              <button
-                onClick={handleLogout}
-                className="block py-2 text-red-300 hover:text-red-500 font-semibold"
-              >
-                Logout
-              </button>
-            </li>
-          )}
-        </ul>
-      </div>
+      {/* ================= MODALS ================= */}
+      <LoginModal
+        open={openUserLogin}
+        onClose={() => setOpenUserLogin(false)}
+        role="user"
+        onOpenRegister={() => {
+          setOpenUserLogin(false);
+          setOpenRegister(true);
+        }}
+      />
 
-      {/* Login Modal */}
-      <LoginModal open={openUserLogin} onClose={() => setOpenUserLogin(false)} role="user" />
+      <RegisterModal
+        open={openRegister}
+        onClose={() => setOpenRegister(false)}
+        onOpenLogin={() => {
+          setOpenRegister(false);
+          setOpenUserLogin(true);
+        }}
+      />
     </header>
   );
 }

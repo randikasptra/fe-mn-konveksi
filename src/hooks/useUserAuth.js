@@ -20,7 +20,6 @@ function loginFn({ email, password }) {
 }
 
 export default function useUserAuth() {
-  // v5: useMutation takes an options object with `mutationFn`
   const m = useMutation({
     mutationFn: loginFn,
     onSuccess: (data) => {
