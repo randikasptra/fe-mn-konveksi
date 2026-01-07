@@ -1,183 +1,202 @@
 // src/pages/customer/Home.jsx
 import React, { useEffect, useState } from "react";
-import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
+import { produkService, authService } from "../../services/api";
+import HeroSection from "../../components/customer/HeroSection";
+import ProductCard from "../../components/customer/ProductCard";
+import ProductDetailModal from "../../components/customer/ProductDetailModal";
 import Footer from "../../components/common/Footer";
-import ProductDetail from "./ProductDetail";
-
-/* ================= HELPER ================= */
-function resolveImage(foto) {
-  if (!foto) return null;
-  if (typeof foto === "string" && foto.startsWith("http")) return foto;
-  return null;
-}
+import LoadingSpinner from "../../components/common/LoadingSpinner";
 
 export default function Home() {
   const navigate = useNavigate();
 
-  /* ================= STATE ================= */
+  // State management
   const [products, setProducts] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
-  /* ===== MODAL DETAIL ===== */
-  const [openDetail, setOpenDetail] = useState(false);
-  const [detailId, setDetailId] = useState(null);
+  // Modal state
+  const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
+  const [selectedProductId, setSelectedProductId] = useState(null);
 
-  const isLoggedIn = !!localStorage.getItem("mn_token");
+  // Auth state
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
 
-  /* ================= FETCH PRODUK ================= */
+  // Check authentication status
   useEffect(() => {
-    async function fetchProduk() {
-      try {
-        const res = await fetch(
-          "https://be-mn-konveksi.vercel.app/api/produk"
-        );
-        const json = await res.json();
-        if (!res.ok) throw new Error(json.message);
+    const checkAuth = () => {
+      const loggedIn = authService.isLoggedIn();
+      setIsLoggedIn(loggedIn);
+    };
 
-        setProducts((json.data || []).slice(0, 4));
+    checkAuth();
+
+    // Listen for auth changes
+    window.addEventListener("storage", checkAuth);
+    window.addEventListener("authChange", checkAuth);
+
+    return () => {
+      window.removeEventListener("storage", checkAuth);
+      window.removeEventListener("authChange", checkAuth);
+    };
+  }, []);
+
+  // Fetch products
+  useEffect(() => {
+    const loadProducts = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        const data = await produkService.getProdukLimit(8); // Ambil 8 produk
+        setProducts(data);
       } catch (err) {
-        console.error("Fetch produk error:", err);
+        console.error("Error loading products:", err);
+        setError("Gagal memuat produk. Silakan coba lagi.");
         setProducts([]);
       } finally {
         setLoading(false);
       }
-    }
+    };
 
-    fetchProduk();
+    loadProducts();
   }, []);
 
-  /* ================= HANDLE PESAN ================= */
-  function handleOrder(e, product) {
-    e.stopPropagation(); // 🔴 penting
+  // Handle order button click
+  const handleOrderClick = (e, product) => {
+    e.stopPropagation();
 
     if (!isLoggedIn) {
       window.dispatchEvent(new Event("openLoginModal"));
       return;
     }
 
-    setDetailId(product.id_produk);
-    setOpenDetail(true);
-  }
+    setSelectedProductId(product.id_produk);
+    setIsDetailModalOpen(true);
+  };
+
+  // Close modal
+  const handleCloseModal = () => {
+    setIsDetailModalOpen(false);
+    setSelectedProductId(null);
+  };
 
   return (
-    <div className="w-full text-gray-800 bg-white">
-      {/* ================= HERO ================= */}
-      <section className="bg-[#57595B] text-center py-10">
-        <h1 className="text-3xl md:text-4xl font-serif tracking-wide text-white">
-          MN KONVEKSI
-        </h1>
-        <p className="text-lg text-white mt-2">Dari Kain Menjadi Karya</p>
+    <div className="min-h-screen bg-gray-50">
+      {/* Hero Section */}
+      <HeroSection />
 
-        <div className="mt-8 w-full max-w-6xl mx-auto overflow-hidden rounded-xl">
-          <div className="relative w-full aspect-[12/5]">
-            <img
-              src="/src/assets/banner-home.png"
-              alt="Banner Produk Konveksi"
-              className="absolute inset-0 w-full h-full object-cover object-top"
-            />
+      {/* Products Section */}
+      <section className="py-16 bg-white">
+        <div className="container mx-auto px-6">
+          {/* Section Header */}
+          <div className="text-center mb-12">
+            <h2 className="text-3xl md:text-4xl font-serif font-bold text-gray-800 mb-4">
+              Produk Unggulan Kami
+            </h2>
+            <p className="text-gray-600 max-w-2xl mx-auto">
+              Temukan koleksi produk konveksi berkualitas tinggi dengan bahan
+              premium dan hasil jahitan terbaik
+            </p>
+            <div className="w-24 h-1 bg-[#57595B] mx-auto mt-6 rounded-full"></div>
           </div>
-        </div>
-      </section>
 
-      {/* ================= PRODUK KAMI ================= */}
-      <section className="text-center py-10">
-        <h2 className="text-2xl md:text-3xl font-serif mb-8">Produk Kami</h2>
+          {/* Loading State */}
+          {loading && (
+            <div className="flex justify-center items-center py-20">
+              <LoadingSpinner />
+            </div>
+          )}
 
-        {loading ? (
-          <p className="text-gray-500">Memuat produk...</p>
-        ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-8 px-6 md:px-20">
-            {products.map((p) => (
-              <article
-                key={p.id_produk}
-                className="bg-white border border-gray-100 rounded-md overflow-hidden shadow-sm flex flex-col hover:shadow-md transition"
+          {/* Error State */}
+          {error && !loading && (
+            <div className="text-center py-20">
+              <div className="text-red-500 mb-4">⚠️ {error}</div>
+              <button
+                onClick={() => window.location.reload()}
+                className="px-6 py-2 bg-[#57595B] text-white rounded-lg hover:bg-[#3a3c3e] transition-colors"
               >
-                {/* IMAGE */}
-                <div className="h-64 md:h-72 w-full relative overflow-hidden bg-gray-100">
-                  {resolveImage(p.foto) ? (
-                    <img
-                      src={resolveImage(p.foto)}
-                      alt={p.nama_produk}
-                      className="absolute inset-0 w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className="w-full h-full bg-gray-200" />
-                  )}
-                </div>
+                Coba Lagi
+              </button>
+            </div>
+          )}
 
-                {/* CONTENT */}
-                <div className="p-4 flex flex-col flex-1">
-                  <h3 className="text-lg font-semibold mb-3">
-                    {p.nama_produk}
-                  </h3>
+          {/* Products Grid */}
+          {!loading && !error && (
+            <>
+              <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-8">
+                {products.map((product) => (
+                  <ProductCard
+                    key={product.id_produk}
+                    product={product}
+                    onOrderClick={handleOrderClick}
+                    isLoggedIn={isLoggedIn}
+                  />
+                ))}
+              </div>
 
-                  <div className="flex gap-3 mt-auto">
-                    {/* PESAN */}
-                    <button
-                      disabled={!isLoggedIn}
-                      onClick={(e) => handleOrder(e, p)}
-                      className={`flex-1 px-4 py-1 rounded-lg border text-lg
-                        ${
-                          isLoggedIn
-                            ? "bg-gray-50 hover:bg-gray-100"
-                            : "bg-gray-200 cursor-not-allowed"
-                        }
-                      `}
-                    >
-                      Pesan
-                    </button>
-
-                    {/* WHATSAPP */}
-                    <button
-                      disabled={!isLoggedIn}
-                      onClick={(e) => handleOrder(e, p)}
-                      className={`w-12 h-12 border rounded-md flex items-center justify-center
-                        ${
-                          isLoggedIn
-                            ? "bg-white hover:shadow-md"
-                            : "bg-gray-200 cursor-not-allowed"
-                        }
-                      `}
-                    >
-                      <Icon
-                        icon="mdi:whatsapp"
-                        className={`text-2xl ${
-                          isLoggedIn ? "text-green-700" : "text-gray-400"
-                        }`}
-                      />
-                    </button>
-                  </div>
-                </div>
-              </article>
-            ))}
-          </div>
-        )}
-
-        <button
-          onClick={() => navigate("/produk")}
-          className="mt-10 px-6 py-2 bg-gray-300 hover:bg-gray-400 rounded text-sm"
-        >
-          Lihat Semua
-        </button>
+              {/* View All Button */}
+              <div className="text-center mt-12">
+                <button
+                  onClick={() => navigate("/produk")}
+                  className="group px-8 py-3 bg-transparent border-2 border-[#57595B] text-[#57595B] font-semibold rounded-lg hover:bg-[#57595B] hover:text-white transition-all duration-300 inline-flex items-center gap-2"
+                >
+                  Lihat Semua Produk
+                  <span className="group-hover:translate-x-1 transition-transform">
+                    →
+                  </span>
+                </button>
+              </div>
+            </>
+          )}
+        </div>
       </section>
 
-      {/* ================= MODAL DETAIL ================= */}
-      {openDetail && (
-        <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center">
-          <div className="relative bg-white w-full max-w-6xl max-h-[90vh] overflow-y-auto rounded-xl">
-            <button
-              onClick={() => setOpenDetail(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-black"
-            >
-              ✕
-            </button>
+      {/* Features Section */}
+      <section className="py-16 bg-gray-100">
+        <div className="container mx-auto px-6">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+            <div className="text-center p-6">
+              <div className="w-16 h-16 bg-[#57595B] rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-white text-2xl">🎯</span>
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Kualitas Terjamin</h3>
+              <p className="text-gray-600">
+                Bahan premium dan jahitan berkualitas tinggi
+              </p>
+            </div>
 
-            <ProductDetail modalId={detailId} />
+            <div className="text-center p-6">
+              <div className="w-16 h-16 bg-[#57595B] rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-white text-2xl">⚡</span>
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Proses Cepat</h3>
+              <p className="text-gray-600">
+                Pengerjaan tepat waktu sesuai deadline
+              </p>
+            </div>
+
+            <div className="text-center p-6">
+              <div className="w-16 h-16 bg-[#57595B] rounded-full flex items-center justify-center mx-auto mb-4">
+                <span className="text-white text-2xl">🎨</span>
+              </div>
+              <h3 className="text-xl font-semibold mb-2">Custom Design</h3>
+              <p className="text-gray-600">Desain sesuai keinginan Anda</p>
+            </div>
           </div>
         </div>
+      </section>
+
+      {/* Product Detail Modal */}
+      {isDetailModalOpen && selectedProductId && (
+        <ProductDetailModal
+          productId={selectedProductId}
+          isOpen={isDetailModalOpen}
+          onClose={handleCloseModal}
+        />
       )}
 
+      {/* Footer */}
       <Footer />
     </div>
   );

@@ -1,14 +1,17 @@
 // src/App.jsx
 import React from "react";
-import { Routes, Route, Navigate, useLocation } from "react-router-dom";
+import { BrowserRouter as Router, Routes, Route, Navigate, Outlet } from "react-router-dom";
+import { Toaster } from 'react-hot-toast';
 
-import Header from "./components/common/Header";
+// Layouts
+import CustomerLayout from "./layouts/CustomerLayout";
+import AdminLayout from "./pages/admin/AdminLayout"; // 🔴 PERBAIKI PATH
 
 /* ================= CUSTOMER PAGES ================= */
-import Catalog from "./pages/customer/Home";
+import Home from "./pages/customer/Home";
 import Products from "./pages/customer/Products";
 import ProductDetail from "./pages/customer/ProductDetail";
-import PesananSaya from "./pages/customer/PesananSaya"; // ✅ NEW
+import PesananSaya from "./pages/customer/PesananSaya";
 
 /* ================= ADMIN PAGES ================= */
 import AdminLoginPage from "./pages/admin/AdminLogin";
@@ -17,120 +20,111 @@ import OrdersAdmin from "./pages/admin/OrdersAdmin";
 import ProductsAdmin from "./pages/admin/ProductsAdmin";
 import LaporanAdmin from "./pages/admin/LaporanAdmin";
 
-/* ================= ADMIN LAYOUT ================= */
-import AdminLayout from "./pages/admin/AdminLayout";
+/* ================= ERROR PAGES ================= */
+import NotFound from "./pages/errors/NotFound";
+import Unauthorized from "./pages/errors/Unauthorized";
 
-/* ================= HELPERS ================= */
-function getToken() {
-  return localStorage.getItem("mn_token") || null;
-}
-
-function getUser() {
-  try {
-    return JSON.parse(localStorage.getItem("mn_user") || "null");
-  } catch {
-    return null;
-  }
-}
+/* ================= PLACEHOLDER ================= */
+const PlaceholderPage = ({ title }) => (
+  <div className="min-h-screen flex items-center justify-center bg-gray-50">
+    <div className="text-center p-8">
+      <h1 className="text-3xl font-bold text-gray-800 mb-4">{title}</h1>
+      <p className="text-gray-600">Halaman dalam pengembangan</p>
+    </div>
+  </div>
+);
 
 /* ================= ROUTE GUARDS ================= */
 function PrivateAdmin({ children }) {
-  const token = getToken();
-  const user = getUser();
+  const token = localStorage.getItem("mn_token");
+  const userRaw = localStorage.getItem("mn_user");
 
   if (!token) return <Navigate to="/admin/login" replace />;
 
-  const role = (user?.role || "").toLowerCase();
-  if (!role.includes("admin")) return <Navigate to="/" replace />;
+  try {
+    const user = JSON.parse(userRaw || "{}");
+    const role = (user?.role || "").toLowerCase();
+    if (!role.includes("admin")) return <Navigate to="/" replace />;
+  } catch {
+    return <Navigate to="/admin/login" replace />;
+  }
 
   return children;
 }
 
 function PrivateUser({ children }) {
-  const token = getToken();
+  const token = localStorage.getItem("mn_token");
   if (!token) return <Navigate to="/" replace />;
   return children;
 }
 
-/* ================= APP ================= */
+/* ================= MAIN APP ================= */
 export default function App() {
-  const location = useLocation();
-  const isAdminRoute = location.pathname.startsWith("/admin");
-
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header hanya tampil di CUSTOMER AREA */}
-      {!isAdminRoute && <Header />}
+    <Router>
+      <Toaster
+        position="top-right"
+        toastOptions={{
+          duration: 4000,
+          style: { background: '#363636', color: '#fff' },
+        }}
+      />
+      
+      <Routes>
+        {/* ================= CUSTOMER ROUTES ================= */}
+        <Route path="/" element={<CustomerLayout />}>
+          <Route index element={<Home />} />
+          <Route path="produk" element={<Products />} />
+          <Route path="produk/:id" element={<ProductDetail />} />
+          <Route path="layanan" element={<PlaceholderPage title="Layanan" />} />
+          <Route path="tentang" element={<PlaceholderPage title="Tentang Kami" />} />
+          <Route path="kontak" element={<PlaceholderPage title="Kontak" />} />
+          <Route path="keranjang" element={
+            <PrivateUser>
+              <PlaceholderPage title="Keranjang" />
+            </PrivateUser>
+          } />
+          <Route path="checkout" element={
+            <PrivateUser>
+              <PlaceholderPage title="Checkout" />
+            </PrivateUser>
+          } />
+          <Route path="pesanan-saya" element={
+            <PrivateUser>
+              <PesananSaya />
+            </PrivateUser>
+          } />
+          <Route path="profil" element={
+            <PrivateUser>
+              <PlaceholderPage title="Profil" />
+            </PrivateUser>
+          } />
+          <Route path="favorit" element={
+            <PrivateUser>
+              <PlaceholderPage title="Favorit" />
+            </PrivateUser>
+          } />
+        </Route>
 
-      {isAdminRoute ? (
-        /* ================= ADMIN AREA ================= */
-        <main className="min-h-screen">
-          <Routes>
-            <Route path="/admin/login" element={<AdminLoginPage />} />
+        {/* ================= ADMIN ROUTES ================= */}
+        <Route path="/admin/login" element={<AdminLoginPage />} />
+        
+        <Route path="/admin" element={
+          <PrivateAdmin>
+            <AdminLayout />
+          </PrivateAdmin>
+        }>
+          <Route index element={<Navigate to="dashboard" replace />} />
+          <Route path="dashboard" element={<Dashboard />} />
+          <Route path="orders" element={<OrdersAdmin />} />
+          <Route path="products" element={<ProductsAdmin />} />
+          <Route path="laporan" element={<LaporanAdmin />} />
+        </Route>
 
-            <Route
-              path="/admin"
-              element={
-                <PrivateAdmin>
-                  <AdminLayout />
-                </PrivateAdmin>
-              }
-            >
-              <Route index element={<Navigate to="dashboard" replace />} />
-              <Route path="dashboard" element={<Dashboard />} />
-              <Route path="orders" element={<OrdersAdmin />} />
-              <Route path="products" element={<ProductsAdmin />} />
-              <Route path="laporan" element={<LaporanAdmin />} />
-            </Route>
-
-            <Route
-              path="/admin/*"
-              element={<Navigate to="/admin/dashboard" replace />}
-            />
-          </Routes>
-        </main>
-      ) : (
-        /* ================= CUSTOMER AREA ================= */
-        <main className="container mx-auto px-4 py-6">
-          <Routes>
-            <Route path="/" element={<Catalog />} />
-            <Route path="/produk" element={<Products />} />
-            <Route path="/product/:slug" element={<ProductDetail />} />
-
-            {/* ✅ PESANAN SAYA */}
-            <Route
-              path="/pesanan-saya"
-              element={
-                <PrivateUser>
-                  <PesananSaya />
-                </PrivateUser>
-              }
-            />
-
-            {/* (OPSIONAL) PROFILE */}
-            <Route
-              path="/profile"
-              element={
-                <PrivateUser>
-                  <div>
-                    <h2 className="text-2xl font-bold">
-                      Profile Pelanggan
-                    </h2>
-                    <p className="text-sm text-gray-600">
-                      Halaman profile / riwayat pesanan
-                    </p>
-                  </div>
-                </PrivateUser>
-              }
-            />
-
-            <Route
-              path="*"
-              element={<div>404 — Halaman tidak ditemukan</div>}
-            />
-          </Routes>
-        </main>
-      )}
-    </div>
+        {/* ================= ERROR ROUTES ================= */}
+        <Route path="/unauthorized" element={<Unauthorized />} />
+        <Route path="*" element={<NotFound />} />
+      </Routes>
+    </Router>
   );
 }
