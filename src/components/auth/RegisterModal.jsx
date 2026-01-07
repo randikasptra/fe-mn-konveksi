@@ -6,9 +6,10 @@ export default function RegisterModal({ open, onClose, onOpenLogin }) {
   const [form, setForm] = useState({
     nama: "",
     email: "",
-    emailConfirm: "",
     no_hp: "",
     password: "",
+    confirm_password: "",
+    alamat: ""
   });
 
   const [loading, setLoading] = useState(false);
@@ -25,14 +26,21 @@ export default function RegisterModal({ open, onClose, onOpenLogin }) {
   async function handleSubmit(e) {
     e.preventDefault();
     setError(null);
+    setSuccess(null);
 
-    if (!form.nama || !form.email || !form.password || !form.no_hp) {
-      setError("Nama, email, password, dan nomor HP wajib diisi");
+    // Validasi frontend
+    if (!form.nama || !form.email || !form.password || !form.confirm_password) {
+      setError("Nama, email, password, dan konfirmasi password wajib diisi");
       return;
     }
 
-    if (form.email !== form.emailConfirm) {
-      setError("Email dan konfirmasi email tidak sama");
+    if (!form.email.includes("@")) {
+      setError("Format email tidak valid");
+      return;
+    }
+
+    if (form.password !== form.confirm_password) {
+      setError("Password dan konfirmasi password tidak sama");
       return;
     }
 
@@ -41,7 +49,8 @@ export default function RegisterModal({ open, onClose, onOpenLogin }) {
       return;
     }
 
-    const no_hp = form.no_hp.replace(/[^0-9]/g, "");
+    // Format nomor HP (opsional)
+    const no_hp = form.no_hp ? form.no_hp.replace(/[^0-9]/g, "") : null;
 
     setLoading(true);
 
@@ -55,7 +64,9 @@ export default function RegisterModal({ open, onClose, onOpenLogin }) {
             nama: form.nama,
             email: form.email,
             password: form.password,
+            confirm_password: form.confirm_password,
             no_hp,
+            alamat: form.alamat || null,
           }),
         }
       );
@@ -68,10 +79,21 @@ export default function RegisterModal({ open, onClose, onOpenLogin }) {
 
       setSuccess("Registrasi berhasil, silakan login.");
 
+      // Reset form setelah sukses
+      setForm({
+        nama: "",
+        email: "",
+        no_hp: "",
+        password: "",
+        confirm_password: "",
+        alamat: ""
+      });
+
+      // Auto redirect ke login setelah 2 detik
       setTimeout(() => {
         onClose?.();
         onOpenLogin?.();
-      }, 1200);
+      }, 2000);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -93,32 +115,92 @@ export default function RegisterModal({ open, onClose, onOpenLogin }) {
 
         <form onSubmit={handleSubmit} className="mt-8 space-y-6">
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <Input label="Email*" name="email" onChange={handleChange} />
-            <Input label="No HP*" name="no_hp" onChange={handleChange} />
-            <Input
-              label="Konfirmasi Email*"
-              name="emailConfirm"
+            <Input 
+              label="Nama Lengkap*" 
+              name="nama" 
+              value={form.nama}
               onChange={handleChange}
+              placeholder="Masukkan nama lengkap"
             />
-            <Input label="Nama Lengkap*" name="nama" onChange={handleChange} />
-            <Input
-              label="Password*"
-              name="password"
+            
+            <Input 
+              label="Email*" 
+              name="email" 
+              type="email"
+              value={form.email}
+              onChange={handleChange}
+              placeholder="contoh@email.com"
+            />
+            
+            <Input 
+              label="Password*" 
+              name="password" 
               type="password"
+              value={form.password}
               onChange={handleChange}
+              placeholder="Minimal 6 karakter"
             />
+            
+            <Input
+              label="Konfirmasi Password*"
+              name="confirm_password"
+              type="password"
+              value={form.confirm_password}
+              onChange={handleChange}
+              placeholder="Ulangi password"
+            />
+            
+            <Input 
+              label="No HP" 
+              name="no_hp" 
+              value={form.no_hp}
+              onChange={handleChange}
+              placeholder="081234567890 (opsional)"
+            />
+            
+            <div className="md:col-span-2">
+              <label className="block text-xs text-gray-500 mb-1">Alamat</label>
+              <textarea
+                name="alamat"
+                value={form.alamat}
+                onChange={handleChange}
+                className="w-full border border-gray-300 px-3 py-2 text-sm outline-none focus:border-black h-20 resize-none"
+                placeholder="Masukkan alamat lengkap (opsional)"
+              />
+            </div>
           </div>
 
-          {error && <p className="text-sm text-red-600">{error}</p>}
-          {success && <p className="text-sm text-green-600">{success}</p>}
+          <div className="text-sm text-gray-500">
+            <p>* Wajib diisi</p>
+          </div>
 
-          <div className="flex justify-end">
+          {error && (
+            <div className="p-3 bg-red-50 border border-red-200 rounded-md">
+              <p className="text-sm text-red-600">{error}</p>
+            </div>
+          )}
+          
+          {success && (
+            <div className="p-3 bg-green-50 border border-green-200 rounded-md">
+              <p className="text-sm text-green-600">{success}</p>
+            </div>
+          )}
+
+          <div className="flex justify-between items-center">
+            <button
+              type="button"
+              onClick={onOpenLogin}
+              className="text-sm text-gray-600 hover:text-black"
+            >
+              Sudah punya akun? <span className="font-semibold">Login</span>
+            </button>
+            
             <button
               type="submit"
               disabled={loading}
-              className="bg-black text-white px-10 py-3 rounded-full text-sm font-medium"
+              className="bg-black text-white px-10 py-3 rounded-full text-sm font-medium hover:bg-gray-800 disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
-              {loading ? "Memproses..." : "Lanjutkan"}
+              {loading ? "Memproses..." : "Daftar Sekarang"}
             </button>
           </div>
         </form>
@@ -127,15 +209,17 @@ export default function RegisterModal({ open, onClose, onOpenLogin }) {
   );
 }
 
-function Input({ label, name, type = "text", onChange }) {
+function Input({ label, name, type = "text", value, onChange, placeholder }) {
   return (
     <div>
       <label className="block text-xs text-gray-500 mb-1">{label}</label>
       <input
         name={name}
         type={type}
+        value={value}
         onChange={onChange}
-        className="w-full border border-gray-300 px-3 py-2 text-sm outline-none focus:border-black"
+        placeholder={placeholder}
+        className="w-full border border-gray-300 px-3 py-2 text-sm outline-none focus:border-black rounded-md"
       />
     </div>
   );
