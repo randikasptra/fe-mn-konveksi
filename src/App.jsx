@@ -24,6 +24,10 @@ import Payment from "./pages/customer/Payment";
 import OrderConfirmation from "./pages/customer/OrderConfirmation";
 import PesananSaya from "./pages/customer/PesananSaya";
 
+/* ================= AUTH PAGES ================= */
+import LoginPage from "./pages/auth/LoginPage";
+import RegisterPage from "./pages/auth/RegisterPage";
+
 /* ================= ADMIN PAGES ================= */
 import AdminLoginPage from "./pages/admin/AdminLogin";
 import Dashboard from "./pages/admin/Dashboard";
@@ -69,6 +73,27 @@ function PrivateUser({ children }) {
   return children;
 }
 
+/* ================= PUBLIC LAYOUT (tanpa navbar) ================= */
+function PublicLayout() {
+  const location = useLocation();
+  
+  // Jangan tampilkan navbar di halaman login/register
+  const hideNavbar = location.pathname === "/login" || location.pathname === "/register" || location.pathname === "/admin/login";
+  
+  return (
+    <div className="min-h-screen bg-white">
+      {!hideNavbar && <CustomerNavbar />}
+      <main>
+        <Outlet />
+      </main>
+    </div>
+  );
+}
+
+// Import useLocation
+import { useLocation } from "react-router-dom";
+import CustomerNavbar from "./components/customer/Navbar";
+
 /* ================= MAIN APP ================= */
 export default function App() {
   return (
@@ -88,7 +113,14 @@ export default function App() {
       />
 
       <Routes>
-        {/* ================= CUSTOMER ROUTES ================= */}
+        {/* ================= PUBLIC AUTH ROUTES (tanpa navbar) ================= */}
+        <Route element={<PublicLayout />}>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/register" element={<RegisterPage />} />
+          <Route path="/admin/login" element={<AdminLoginPage />} />
+        </Route>
+
+        {/* ================= CUSTOMER ROUTES (dengan navbar) ================= */}
         <Route path="/" element={<CustomerLayout />}>
           <Route index element={<Home />} />
           <Route path="produk" element={<Products />} />
@@ -148,8 +180,6 @@ export default function App() {
         </Route>
 
         {/* ================= ADMIN ROUTES ================= */}
-        <Route path="/admin/login" element={<AdminLoginPage />} />
-
         <Route
           path="/admin"
           element={

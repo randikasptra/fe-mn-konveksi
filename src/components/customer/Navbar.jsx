@@ -2,8 +2,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Icon } from "@iconify/react";
-import LoginModal from "../auth/LoginModal";
-import RegisterModal from "../auth/RegisterModal";
 
 const API_BASE = "https://be-mn-konveksi.vercel.app/api";
 
@@ -15,8 +13,6 @@ export default function CustomerNavbar() {
   const searchRef = useRef(null);
 
   // State untuk modals
-  const [openLogin, setOpenLogin] = useState(false);
-  const [openRegister, setOpenRegister] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // State untuk user
@@ -478,13 +474,13 @@ export default function CustomerNavbar() {
               ) : (
                 <div className="hidden lg:flex items-center gap-3">
                   <button
-                    onClick={() => setOpenLogin(true)}
+                    onClick={() => navigate("/login")}
                     className="px-5 py-2.5 text-gray-700 hover:text-indigo-600 font-medium"
                   >
                     Masuk
                   </button>
                   <button
-                    onClick={() => setOpenRegister(true)}
+                    onClick={() => navigate("/register")}
                     className="px-5 py-2.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:shadow-lg transition-all duration-300 font-medium"
                   >
                     Daftar
@@ -532,7 +528,7 @@ export default function CustomerNavbar() {
                     <button
                       onClick={() => {
                         setMobileMenuOpen(false);
-                        setOpenLogin(true);
+                        navigate("/login");
                       }}
                       className="w-full py-3.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl font-medium"
                     >
@@ -541,7 +537,7 @@ export default function CustomerNavbar() {
                     <button
                       onClick={() => {
                         setMobileMenuOpen(false);
-                        setOpenRegister(true);
+                        navigate("/register");
                       }}
                       className="w-full py-3.5 border-2 border-indigo-600 text-indigo-600 rounded-xl font-medium"
                     >
@@ -593,43 +589,6 @@ export default function CustomerNavbar() {
           )}
         </div>
       </header>
-
-      {/* MODALS */}
-      <LoginModal
-        open={openLogin}
-        onClose={() => setOpenLogin(false)}
-        role="user"
-        onOpenRegister={() => {
-          setOpenLogin(false);
-          setOpenRegister(true);
-        }}
-        onSuccess={() => {
-          setIsLoggedIn(true);
-          const userRaw = localStorage.getItem("mn_user");
-          if (userRaw) {
-            try {
-              const user = JSON.parse(userRaw);
-              setUserName(user?.nama || "Pelanggan");
-              setUserEmail(user?.email || "");
-            } catch (err) {
-              console.error("Error parsing user data:", err);
-            }
-          }
-        }}
-      />
-
-      <RegisterModal
-        open={openRegister}
-        onClose={() => setOpenRegister(false)}
-        onOpenLogin={() => {
-          setOpenRegister(false);
-          setOpenLogin(true);
-        }}
-        onSuccess={() => {
-          setOpenRegister(false);
-          setOpenLogin(true);
-        }}
-      />
     </>
   );
 }

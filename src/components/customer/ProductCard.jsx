@@ -1,10 +1,11 @@
 // src/components/customer/ProductCard.jsx
-import React from "react";
+import React, { useState } from "react";
 import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
 
 const ProductCard = ({ product, onOrderClick, isLoggedIn }) => {
   const navigate = useNavigate();
+  const [imageError, setImageError] = useState(false);
 
   // Format harga ke Rupiah
   const formatPrice = (price) => {
@@ -33,6 +34,11 @@ const ProductCard = ({ product, onOrderClick, isLoggedIn }) => {
     return null;
   };
 
+  // Handle image error
+  const handleImageError = () => {
+    setImageError(true);
+  };
+
   // Handle WhatsApp click
   const handleWhatsAppClick = (e) => {
     e.stopPropagation();
@@ -58,36 +64,38 @@ const ProductCard = ({ product, onOrderClick, isLoggedIn }) => {
     window.open(url, "_blank");
   };
 
-  // Handle order click
+  // Handle order click - UPDATED untuk navigate ke login page
   const handleOrderClick = (e) => {
     e.stopPropagation();
     if (!isLoggedIn) {
-      window.dispatchEvent(
-        new CustomEvent("openLoginModal", {
-          detail: { redirectAfterLogin: `/product/${product.id_produk}` },
-        })
-      );
+      // Navigate ke halaman login dengan state untuk redirect kembali
+      navigate("/login", { 
+        state: { 
+          from: { 
+            pathname: `/produk/${product.id_produk}` 
+          } 
+        } 
+      });
       return;
     }
     onOrderClick(e, product);
   };
 
+  // Handle detail click
+  const handleDetailClick = (e) => {
+    e.stopPropagation();
+    navigate(`/produk/${product.id_produk}`);
+  };
+
+  // Get image source
+  const imageSrc = resolveImage(product.foto);
+  const showPlaceholder = imageError || !imageSrc;
+
   return (
     <div className="group relative flex flex-col h-full bg-white rounded-2xl shadow-lg hover:shadow-2xl transition-all duration-500 overflow-hidden border border-gray-200 hover:border-indigo-200 hover:-translate-y-1">
       {/* Image Container */}
       <div className="relative h-64 overflow-hidden bg-gradient-to-br from-gray-50 to-gray-100">
-        {resolveImage(product.foto) ? (
-          <>
-            <img
-              src={resolveImage(product.foto)}
-              alt={product.nama_produk}
-              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-              loading="lazy"
-            />
-            {/* Gradient Overlay */}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-          </>
-        ) : (
+        {showPlaceholder ? (
           <div className="w-full h-full flex flex-col items-center justify-center">
             <Icon
               icon="mdi:tshirt-crew-outline"
@@ -95,6 +103,18 @@ const ProductCard = ({ product, onOrderClick, isLoggedIn }) => {
             />
             <span className="text-gray-400 text-sm">Gambar tidak tersedia</span>
           </div>
+        ) : (
+          <>
+            <img
+              src={imageSrc}
+              alt={product.nama_produk}
+              className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
+              loading="lazy"
+              onError={handleImageError}
+            />
+            {/* Gradient Overlay */}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+          </>
         )}
 
         {/* Badge Estimasi */}
@@ -116,7 +136,7 @@ const ProductCard = ({ product, onOrderClick, isLoggedIn }) => {
         <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-500">
           <div className="flex gap-2">
             <button
-              onClick={() => navigate(`/produk/${product.id_produk}`)}
+              onClick={handleDetailClick}
               className="p-3 bg-white/90 backdrop-blur-sm rounded-full shadow-lg hover:scale-110 transition-transform"
             >
               <Icon icon="mdi:eye" className="text-indigo-600 text-lg" />
@@ -231,7 +251,13 @@ const ProductCard = ({ product, onOrderClick, isLoggedIn }) => {
                   className="text-indigo-500 text-sm flex-shrink-0"
                 />
                 <p className="text-xs text-indigo-700">
-                  Login untuk harga khusus & kemudahan pesan
+                  <button 
+                    onClick={() => navigate("/login")} 
+                    className="font-semibold hover:underline mr-1"
+                  >
+                    Login
+                  </button> 
+                  untuk harga khusus & kemudahan pesan
                 </p>
               </div>
             </div>
