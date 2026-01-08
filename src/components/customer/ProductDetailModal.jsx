@@ -1,8 +1,8 @@
 // src/components/customer/ProductDetailModal.jsx
 import React, { useState, useEffect } from "react";
 import { Icon } from "@iconify/react";
-import { produkService } from "../../services/api";
 import { useNavigate } from "react-router-dom";
+import { produkService } from "../../services/api"; // Import yang benar
 
 const ProductDetailModal = ({ productId, isOpen, onClose }) => {
   const navigate = useNavigate();
@@ -19,12 +19,13 @@ const ProductDetailModal = ({ productId, isOpen, onClose }) => {
     const loadProductDetail = async () => {
       try {
         setLoading(true);
+        // Panggil API dengan benar
         const response = await produkService.getProdukDetail(productId);
-        setProduct(response.data);
+        setProduct(response.data.data);
 
         // Set default color jika ada
-        if (response.data.warna && response.data.warna.length > 0) {
-          setSelectedColor(response.data.warna[0]);
+        if (response.data.data?.warna && response.data.data.warna.length > 0) {
+          setSelectedColor(response.data.data.warna[0]);
         }
       } catch (error) {
         console.error("Error loading product detail:", error);

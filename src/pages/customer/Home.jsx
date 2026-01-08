@@ -1,10 +1,11 @@
 // src/pages/customer/Home.jsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { produkService, authService } from "../../services/api";
+import { produkService, authService } from "../../services/api"; // Import yang benar
 import HeroSection from "../../components/customer/HeroSection";
 import ProductCard from "../../components/customer/ProductCard";
-import ProductDetailModal from "../../components/customer/ProductDetailModal";
+// import ProductDetailModal from "../../components/customer/ProductDetailModal";
+import ProductOrderModal from "../../components/customer/ProductOrderModal";
 import Footer from "../../components/common/Footer";
 import LoadingSpinner from "../../components/common/LoadingSpinner";
 import { Icon } from "@iconify/react";
@@ -45,6 +46,7 @@ export default function Home() {
       try {
         setLoading(true);
         setError(null);
+        // Panggil API dengan benar
         const data = await produkService.getProdukLimit(8);
         setProducts(data);
       } catch (err) {
@@ -253,7 +255,7 @@ export default function Home() {
 
       {/* Product Detail Modal */}
       {isDetailModalOpen && selectedProductId && (
-        <ProductDetailModal
+        <ProductOrderModal 
           productId={selectedProductId}
           isOpen={isDetailModalOpen}
           onClose={handleCloseModal}
