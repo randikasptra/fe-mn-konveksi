@@ -6,6 +6,7 @@ import {
   Route,
   Navigate,
   Outlet,
+  useLocation,
 } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 
@@ -18,6 +19,9 @@ import CheckoutLayout from "./layouts/CheckoutLayout";
 import Home from "./pages/customer/Home";
 import Products from "./pages/customer/Products";
 import ProductDetail from "./pages/customer/ProductDetail";
+import Layanan from "./pages/customer/Layanan";
+import Tentang from "./pages/customer/Tentang";
+import Kontak from "./pages/customer/Kontak";
 import Cart from "./pages/customer/Cart";
 import Checkout from "./pages/customer/Checkout";
 import Payment from "./pages/customer/Payment";
@@ -78,7 +82,9 @@ function PublicLayout() {
   const location = useLocation();
   
   // Jangan tampilkan navbar di halaman login/register
-  const hideNavbar = location.pathname === "/login" || location.pathname === "/register" || location.pathname === "/admin/login";
+  const hideNavbar = location.pathname === "/login" || 
+                     location.pathname === "/register" || 
+                     location.pathname === "/admin/login";
   
   return (
     <div className="min-h-screen bg-white">
@@ -90,8 +96,7 @@ function PublicLayout() {
   );
 }
 
-// Import useLocation
-import { useLocation } from "react-router-dom";
+// Import CustomerNavbar
 import CustomerNavbar from "./components/customer/Navbar";
 
 /* ================= MAIN APP ================= */
@@ -125,12 +130,9 @@ export default function App() {
           <Route index element={<Home />} />
           <Route path="produk" element={<Products />} />
           <Route path="produk/:id" element={<ProductDetail />} />
-          <Route path="layanan" element={<PlaceholderPage title="Layanan" />} />
-          <Route
-            path="tentang"
-            element={<PlaceholderPage title="Tentang Kami" />}
-          />
-          <Route path="kontak" element={<PlaceholderPage title="Kontak" />} />
+          <Route path="layanan" element={<Layanan />} />
+          <Route path="tentang" element={<Tentang />} /> {/* Route Tentang yang benar */}
+          <Route path="kontak" element={<Kontak />} />
           <Route
             path="keranjang"
             element={
