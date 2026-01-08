@@ -78,13 +78,13 @@ export default function LoginPage() {
   };
 
   // Fungsi untuk mengisi demo credentials
-  const fillDemoCredentials = (role: "admin" | "user") => {
-    const demos = {
-      admin: { email: "admin@konveksi.test", password: "password123" },
-      user: { email: "user@konveksi.test", password: "password123" },
-    };
-    setForm(demos[role]);
-  };
+  // const fillDemoCredentials = (role: "admin" | "user") => {
+  //   const demos = {
+  //     admin: { email: "admin@konveksi.test", password: "password123" },
+  //     user: { email: "user@konveksi.test", password: "password123" },
+  //   };
+  //   setForm(demos[role]);
+  // };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 relative overflow-hidden">
@@ -265,22 +265,6 @@ export default function LoginPage() {
               </div>
 
               {/* Demo Buttons */}
-              <div className="flex gap-3">
-                <button
-                  type="button"
-                  onClick={() => fillDemoCredentials("user")}
-                  className="flex-1 px-4 py-2.5 text-sm bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 rounded-lg hover:from-indigo-200 hover:to-purple-200 transition-all duration-300 border border-indigo-200"
-                >
-                  🛍️ Demo Customer
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fillDemoCredentials("admin")}
-                  className="flex-1 px-4 py-2.5 text-sm bg-gradient-to-r from-gray-100 to-gray-200 text-gray-700 rounded-lg hover:from-gray-200 hover:to-gray-300 transition-all duration-300 border border-gray-300"
-                >
-                  👔 Demo Admin
-                </button>
-              </div>
 
               {error && (
                 <div className="p-4 bg-gradient-to-r from-red-50 to-pink-50 border border-red-200 rounded-xl animate-shake">

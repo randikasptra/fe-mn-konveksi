@@ -27,6 +27,7 @@ import Checkout from "./pages/customer/Checkout";
 import Payment from "./pages/customer/Payment";
 import OrderConfirmation from "./pages/customer/OrderConfirmation";
 import PesananSaya from "./pages/customer/PesananSaya";
+import ProfilePage from "./pages/customer/ProfilePage"; // Import Profile Page
 
 /* ================= AUTH PAGES ================= */
 import LoginPage from "./pages/auth/LoginPage";
@@ -73,7 +74,7 @@ function PrivateAdmin({ children }) {
 
 function PrivateUser({ children }) {
   const token = localStorage.getItem("mn_token");
-  if (!token) return <Navigate to="/" replace />;
+  if (!token) return <Navigate to="/login" replace />;
   return children;
 }
 
@@ -131,8 +132,10 @@ export default function App() {
           <Route path="produk" element={<Products />} />
           <Route path="produk/:id" element={<ProductDetail />} />
           <Route path="layanan" element={<Layanan />} />
-          <Route path="tentang" element={<Tentang />} /> {/* Route Tentang yang benar */}
+          <Route path="tentang" element={<Tentang />} />
           <Route path="kontak" element={<Kontak />} />
+          
+          {/* Protected Routes - Requires Login */}
           <Route
             path="keranjang"
             element={
@@ -149,14 +152,26 @@ export default function App() {
               </PrivateUser>
             }
           />
+          
+          {/* Profile & Settings - Same Page */}
           <Route
             path="profil"
             element={
               <PrivateUser>
-                <PlaceholderPage title="Profil" />
+                <ProfilePage />
               </PrivateUser>
             }
           />
+          <Route
+            path="pengaturan"
+            element={
+              <PrivateUser>
+                <ProfilePage />
+              </PrivateUser>
+            }
+          />
+          
+          {/* Optional: Favorit (if needed in future) */}
           <Route
             path="favorit"
             element={

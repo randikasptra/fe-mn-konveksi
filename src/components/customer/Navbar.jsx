@@ -175,18 +175,13 @@ export default function CustomerNavbar() {
     { name: "Tentang", path: "/tentang", icon: "mdi:information" },
     { name: "Kontak", path: "/kontak", icon: "mdi:phone" },
   ];
-
-  const profileLinks = [
-    { name: "Profil Saya", path: "/profil", icon: "mdi:account" },
-    {
-      name: "Pesanan Saya",
-      path: "/pesanan-saya",
-      icon: "mdi:package-variant",
-    },
-    // { name: "Favorit", path: "/favorit", icon: "mdi:heart" },
-    { name: "Pengaturan", path: "/pengaturan", icon: "mdi:cog" },
-  ];
-
+const profileLinks = [
+  { name: "Profil Saya", path: "/profil", icon: "mdi:account" },
+  {
+    name: "Pesanan Saya",
+    path: "/pesanan-saya",
+    icon: "mdi:package-variant",
+  },];
   return (
     <>
       {/* NOTIFICATION TOAST */}
