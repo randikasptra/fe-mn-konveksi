@@ -41,50 +41,102 @@ class UserService {
   }
 
   /**
-   * Update user profile
+   * Update user profile - MENGGUNAKAN PATH /api/users/:id
    */
   async updateProfile(data) {
     try {
       const token = localStorage.getItem("mn_token");
-      if (!token) {
+      const currentUser = this.getCurrentUser();
+      
+      if (!token || !currentUser) {
         throw new Error("Silakan login terlebih dahulu");
       }
 
-      // Format nomor HP (hapus karakter non-digit)
-      const no_hp = data.no_hp ? data.no_hp.replace(/[^0-9]/g, "") : null;
+      // Get user ID dari current user
+      const userId = currentUser.id_user || currentUser.id;
+      
+      if (!userId) {
+        throw new Error("ID pengguna tidak ditemukan");
+      }
 
-      const response = await fetch(`${API_BASE}/auth/update-profile`, {
+      // Format nomor HP (hapus karakter non-digit dan ubah ke format 62)
+      let no_hp = data.no_hp ? data.no_hp.replace(/[^0-9]/g, "") : null;
+      
+      // Convert to 62 format if starts with 0 or +62
+      if (no_hp) {
+        if (no_hp.startsWith('0')) {
+          no_hp = '62' + no_hp.substring(1);
+        } else if (no_hp.startsWith('62')) {
+          // Already in correct format
+        } else if (no_hp.startsWith('+62')) {
+          no_hp = no_hp.substring(1); // Remove +
+        }
+      }
+
+      const requestData = {
+        nama: data.nama,
+        no_hp: no_hp,
+        alamat: data.alamat || null,
+      };
+
+      // Tambahkan role hanya jika ada di current user
+      if (currentUser.role) {
+        requestData.role = currentUser.role;
+      }
+
+      console.log('Update profile request:', {
+        url: `${API_BASE}/users/${userId}`,
+        data: requestData
+      });
+
+      const response = await fetch(`${API_BASE}/users/${userId}`, {
         method: "PATCH",
         headers: {
           "Authorization": `Bearer ${token}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({
-          nama: data.nama,
-          no_hp,
-          alamat: data.alamat || null,
-        }),
+        body: JSON.stringify(requestData),
       });
 
-      const json = await response.json();
+      console.log('Response status:', response.status);
 
-      if (!response.ok) {
-        throw new Error(json.message || "Gagal memperbarui profil");
+      let json;
+      const responseText = await response.text();
+      
+      try {
+        json = responseText ? JSON.parse(responseText) : {};
+      } catch (parseError) {
+        console.error('Error parsing response:', parseError);
+        throw new Error('Invalid response from server');
       }
 
-      // Update localStorage
+      if (!response.ok) {
+        throw new Error(json.message || `Gagal memperbarui profil (${response.status})`);
+      }
+
+      // Update localStorage dengan data yang baru
       if (json.data) {
-        localStorage.setItem("mn_user", JSON.stringify(json.data));
+        const updatedUser = { ...currentUser, ...json.data };
+        localStorage.setItem("mn_user", JSON.stringify(updatedUser));
         window.dispatchEvent(new Event("authChanged"));
       }
 
       return {
         success: true,
         data: json.data,
-        message: "Profil berhasil diperbarui"
+        message: json.message || "Profil berhasil diperbarui"
       };
     } catch (error) {
       console.error("Error updating profile:", error);
+      
+      // Check for CORS error
+      if (error.message.includes('Failed to fetch') || 
+          error.message.includes('NetworkError') ||
+          error.message.includes('CORS')) {
+        console.warn('CORS error detected, trying alternative method...');
+        return await this.updateProfileAlt(data);
+      }
+      
       return {
         success: false,
         message: error.message
@@ -93,7 +145,85 @@ class UserService {
   }
 
   /**
-   * Change password
+   * Alternative update method menggunakan proxy atau different endpoint
+   */
+  async updateProfileAlt(data) {
+    try {
+      const token = localStorage.getItem("mn_token");
+      const currentUser = this.getCurrentUser();
+      
+      if (!token || !currentUser) {
+        throw new Error("Silakan login terlebih dahulu");
+      }
+
+      const userId = currentUser.id_user || currentUser.id;
+      
+      if (!userId) {
+        throw new Error("ID pengguna tidak ditemukan");
+      }
+
+      // Coba endpoint berbeda atau method berbeda
+      const endpoints = [
+        `${API_BASE}/user/${userId}`,  // Coba singular 'user'
+        `${API_BASE}/users/${userId}`, // Coba plural 'users'
+        `${API_BASE}/profile/update`,  // Coba endpoint umum
+      ];
+
+      let lastError;
+      
+      for (const endpoint of endpoints) {
+        try {
+          console.log(`Trying endpoint: ${endpoint}`);
+          
+          const response = await fetch(endpoint, {
+            method: "PATCH",
+            headers: {
+              "Authorization": `Bearer ${token}`,
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              nama: data.nama,
+              no_hp: data.no_hp ? data.no_hp.replace(/[^0-9]/g, "") : null,
+              alamat: data.alamat || null,
+            }),
+          });
+
+          if (response.ok) {
+            const json = await response.json();
+            
+            // Update localStorage
+            if (json.data) {
+              const updatedUser = { ...currentUser, ...json.data };
+              localStorage.setItem("mn_user", JSON.stringify(updatedUser));
+              window.dispatchEvent(new Event("authChanged"));
+            }
+
+            return {
+              success: true,
+              data: json.data,
+              message: "Profil berhasil diperbarui (alternative method)"
+            };
+          }
+        } catch (error) {
+          lastError = error;
+          console.log(`Endpoint ${endpoint} failed:`, error.message);
+          continue; // Coba endpoint berikutnya
+        }
+      }
+      
+      throw lastError || new Error("Semua endpoint gagal");
+      
+    } catch (error) {
+      console.error("Error in updateProfileAlt:", error);
+      return {
+        success: false,
+        message: error.message
+      };
+    }
+  }
+
+  /**
+   * Change password - MENGGUNAKAN PATH /api/auth/change-password
    */
   async changePassword(oldPassword, newPassword, confirmPassword) {
     try {
@@ -193,7 +323,7 @@ class UserService {
   }
 
   /**
-   * Format phone number
+   * Format phone number untuk display
    */
   formatPhone(phone) {
     if (!phone) return "-";
@@ -201,12 +331,39 @@ class UserService {
     // Remove non-digits
     const cleaned = phone.replace(/\D/g, "");
     
-    // Format: 0812-3456-7890
-    if (cleaned.length === 12 || cleaned.length === 13) {
-      return cleaned.replace(/(\d{4})(\d{4})(\d{4})/, "$1-$2-$3");
+    if (cleaned.length >= 10) {
+      // Format: 0812-3456-7890
+      return cleaned.replace(/(\d{4})(\d{4})(\d{0,4})/, "$1-$2-$3");
     }
     
     return phone;
+  }
+
+  /**
+   * Format phone number untuk input field (dengan +62)
+   */
+  formatPhoneForInput(phone) {
+    if (!phone) return "";
+    
+    const cleaned = phone.replace(/\D/g, "");
+    
+    if (cleaned.startsWith('62')) {
+      return cleaned;
+    } else if (cleaned.startsWith('0')) {
+      return '62' + cleaned.substring(1);
+    } else if (cleaned.length > 0) {
+      return '62' + cleaned;
+    }
+    
+    return cleaned;
+  }
+
+  /**
+   * Get user ID from current user
+   */
+  getUserId() {
+    const user = this.getCurrentUser();
+    return user?.id_user || user?.id || null;
   }
 }
 

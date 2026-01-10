@@ -154,6 +154,7 @@ export const produkService = {
 
 // ============= ORDER SERVICE =============
 export const orderService = {
+  // CREATE ORDER
   createOrder: async (data) => {
     try {
       const response = await api.post("/pesanan/create", data);
@@ -163,7 +164,8 @@ export const orderService = {
     }
   },
   
-  getOrders: async () => {
+  // GET USER'S ORDERS
+  getMyOrders: async () => {
     try {
       const response = await api.get("/pesanan/me");
       return response.data;
@@ -172,6 +174,17 @@ export const orderService = {
     }
   },
   
+  // GET ALL ORDERS (ADMIN ONLY)
+  getAllOrders: async () => {
+    try {
+      const response = await api.get("/pesanan");
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+  
+  // GET ORDER DETAIL
   getOrderDetail: async (id) => {
     try {
       const response = await api.get(`/pesanan/${id}`);
@@ -181,9 +194,42 @@ export const orderService = {
     }
   },
   
+  // UPDATE ORDER STATUS (ADMIN)
   updateOrderStatus: async (id, status) => {
     try {
       const response = await api.put(`/pesanan/${id}/status`, { status });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+  
+  // DELETE ORDER
+  deleteOrder: async (id, data = {}) => {
+    try {
+      const response = await api.delete(`/pesanan/${id}`, {
+        data: data // Kirim data di body untuk DELETE request
+      });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+  
+  // GET DASHBOARD SUMMARY (USER)
+  getUserSummary: async () => {
+    try {
+      const response = await api.get("/pesanan/summary/user");
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+  
+  // GET DASHBOARD SUMMARY (ADMIN)
+  getAdminSummary: async () => {
+    try {
+      const response = await api.get("/pesanan/summary/admin");
       return response.data;
     } catch (error) {
       throw error;
@@ -235,9 +281,12 @@ const API = {
   getProdukLimit: produkService.getProdukLimit,
   
   // Orders
+  getOrders: orderService.getMyOrders, // Default untuk user
+  getAllOrders: orderService.getAllOrders, // Untuk admin
   createOrder: orderService.createOrder,
-  getOrders: orderService.getOrders,
   getOrderDetail: orderService.getOrderDetail,
+  updateOrderStatus: orderService.updateOrderStatus,
+  deleteOrder: orderService.deleteOrder, // ✅ DITAMBAHKAN
   
   // Transactions
   createPayment: paymentService.createPayment,

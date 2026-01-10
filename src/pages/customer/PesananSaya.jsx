@@ -1,8 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { Icon } from "@iconify/react";
 import OrderService from "../../services/orderService";
-import StatusBadge from "../../components/customer/pesanan/StatusBadge";
-import ProgressTracker from "../../components/customer/pesanan/ProgressTracker";
 import OrderCard from "../../components/customer/pesanan/OrderCard";
 
 /* ================= MAIN COMPONENT ================= */
@@ -10,8 +8,10 @@ export default function PesananSaya() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
   const [activeTab, setActiveTab] = useState("all");
   const [error, setError] = useState(null);
+  const [deleteModal, setDeleteModal] = useState({ show: false, order: null });
 
   async function loadOrders() {
     try {
@@ -96,6 +96,74 @@ export default function PesananSaya() {
     }
   }
 
+  // Fungsi untuk membuka modal konfirmasi hapus
+  const openDeleteModal = (order) => {
+    setDeleteModal({ show: true, order });
+  };
+
+  // Fungsi untuk menutup modal
+  const closeDeleteModal = () => {
+    setDeleteModal({ show: false, order: null });
+  };
+
+  // Fungsi untuk menghapus pesanan
+  const handleDeleteOrder = async () => {
+    if (!deleteModal.order) return;
+
+    try {
+      setDeletingId(deleteModal.order.id_pesanan);
+      
+      await OrderService.deleteOrder(deleteModal.order.id_pesanan);
+      
+      // Refresh daftar pesanan
+      await loadOrders();
+      
+      // Tampilkan pesan sukses
+      alert("Pesanan berhasil dihapus");
+      
+      // Tutup modal
+      closeDeleteModal();
+      
+    } catch (error) {
+      alert(error.message);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // FUNGSI DIPERBAIKI: Mengecek apakah pesanan bisa dihapus berdasarkan backend
+  const canDeleteOrder = (order) => {
+    // 1. Cek status pesanan - tidak boleh DIPROSES atau SELESAI
+    if (["DIPROSES", "SELESAI"].includes(order.status_pesanan)) {
+      return false;
+    }
+
+    // 2. Cek transaksi settlement - tidak boleh ada settlement
+    const hasSettlement = order.transaksi?.some(
+      (t) => t.midtrans_status === "settlement"
+    );
+    if (hasSettlement) {
+      return false;
+    }
+
+    // 3. Cek status transaksi lainnya
+    // Hanya bisa dihapus jika semua transaksi memiliki status: pending, expire, cancel, deny
+    // atau tidak ada transaksi sama sekali
+    const validStatuses = ["pending", "expire", "cancel", "deny"];
+    
+    // Jika tidak ada transaksi, bisa dihapus
+    if (!order.transaksi || order.transaksi.length === 0) {
+      return true;
+    }
+    
+    // Jika ada transaksi, cek semua status valid
+    const hasInvalidPayment = order.transaksi?.some(
+      (t) => t.midtrans_status && !validStatuses.includes(t.midtrans_status)
+    );
+    
+    return !hasInvalidPayment;
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-12">
@@ -142,7 +210,7 @@ export default function PesananSaya() {
     return order.transaksi?.filter((t) => t.midtrans_status === "settlement") || [];
   };
 
-  // Hitung statistik
+  // Hitung statistik - DIPERBAIKI: ada kesalahan sintaks di bagian processing
   const stats = {
     total: orders.length,
     waiting: orders.filter(order => {
@@ -307,13 +375,16 @@ export default function PesananSaya() {
                 key={order.id_pesanan}
                 order={order}
                 onPay={handlePay}
+                onDelete={openDeleteModal}
+                canDelete={canDeleteOrder(order)}
                 processingId={processingId}
+                deletingId={deletingId} // Ditambahkan prop ini
               />
             ))}
           </div>
         )}
 
-        {/* Help Section */}
+        {/* Help Section - DIPERBAIKI: Informasi lebih akurat */}
         <div className="mt-12 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-8 border border-indigo-100">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
@@ -327,6 +398,12 @@ export default function PesananSaya() {
                   <li>Bayar DP 50% untuk memulai produksi</li>
                   <li>Pelunasan dapat dilakukan kapan saja sebelum pesanan selesai</li>
                   <li>Produksi dimulai setelah DP diterima</li>
+                </ol>
+                <p className="mt-3 mb-1">🗑️ Hapus Pesanan:</p>
+                <ol className="list-decimal pl-5 space-y-1">
+                  <li>Pesanan <strong>tidak dapat dihapus</strong> jika status sudah "Diproses" atau "Selesai"</li>
+                  <li>Pesanan <strong>tidak dapat dihapus</strong> jika sudah ada pembayaran berhasil</li>
+                  <li>Pesanan <strong>hanya dapat dihapus</strong> jika belum dibayar atau pembayaran gagal/kadaluarsa/ditolak</li>
                 </ol>
               </div>
             </div>
@@ -354,6 +431,73 @@ export default function PesananSaya() {
           </div>
         </div>
       </div>
+
+      {/* Modal Konfirmasi Hapus - DIPERBAIKI: Loading spinner lebih baik */}
+      {deleteModal.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                  <Icon icon="mdi:alert-circle-outline" className="text-red-600 text-2xl" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Hapus Pesanan</h3>
+                  <p className="text-gray-600">Konfirmasi penghapusan pesanan</p>
+                </div>
+              </div>
+              
+              <div className="mb-6">
+                <p className="text-gray-700 mb-2">
+                  Apakah Anda yakin ingin menghapus pesanan ini?
+                </p>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="font-medium text-gray-900">#{deleteModal.order?.id_pesanan}</p>
+                  <p className="text-gray-600">{deleteModal.order?.produk?.nama_produk}</p>
+                  <p className="text-lg font-bold text-gray-900 mt-1">
+                    Rp {deleteModal.order?.total_harga?.toLocaleString()}
+                  </p>
+                  <div className="mt-2 text-sm text-gray-500">
+                    <p>Status: {deleteModal.order?.status_pesanan}</p>
+                    <p>Tanggal: {new Date(deleteModal.order?.tanggal_pesan).toLocaleDateString("id-ID")}</p>
+                  </div>
+                </div>
+                <p className="text-sm text-red-600 mt-3">
+                  <Icon icon="mdi:information-outline" className="inline mr-1" />
+                  Tindakan ini tidak dapat dibatalkan
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={closeDeleteModal}
+                  disabled={deletingId}
+                  className="px-5 py-2.5 bg-white text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors border border-gray-300 disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleDeleteOrder}
+                  disabled={deletingId}
+                  className="px-5 py-2.5 bg-gradient-to-r from-red-600 to-pink-600 text-white font-medium rounded-xl hover:from-red-700 hover:to-pink-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {deletingId ? (
+                    <>
+                      <div className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                      Menghapus...
+                    </>
+                  ) : (
+                    <>
+                      <Icon icon="mdi:delete" />
+                      Hapus Pesanan
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

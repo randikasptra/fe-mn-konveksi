@@ -76,6 +76,51 @@ const OrderService = {
     } catch (error) {
       throw new Error(error.response?.data?.message || "Gagal membuat pembayaran");
     }
+  },
+
+  // ================= DELETE ORDER - DIPERBAIKI =================
+  async deleteOrder(id_pesanan) {
+    try {
+      // Dapatkan role user dari localStorage
+      const userData = JSON.parse(localStorage.getItem("mn_user") || "{}");
+      const role = userData.role || "CUSTOMER";
+      
+      const response = await API.deleteOrder(id_pesanan, { role });
+      
+      if (response.data?.success || response.data?.message) {
+        return response.data.message || "Pesanan berhasil dihapus";
+      }
+      
+      throw new Error("Gagal menghapus pesanan");
+      
+    } catch (error) {
+      // Handle specific error responses berdasarkan backend
+      if (error.response?.status === 400) {
+        const errorMessage = error.response.data?.message || error.response.data?.error;
+        
+        // Mapping error message dari backend
+        if (errorMessage?.includes("sudah diproses")) {
+          throw new Error("Pesanan tidak dapat dihapus karena sudah diproses atau selesai");
+        } else if (errorMessage?.includes("pembayaran berhasil")) {
+          throw new Error("Pesanan tidak dapat dihapus karena sudah memiliki pembayaran yang berhasil");
+        } else if (errorMessage?.includes("Status pembayaran tidak valid")) {
+          throw new Error("Pesanan tidak dapat dihapus karena status pembayaran tidak memungkinkan");
+        } else if (errorMessage?.includes("tidak dapat dihapus")) {
+          throw new Error(errorMessage);
+        } else {
+          throw new Error(errorMessage || "Pesanan tidak dapat dihapus");
+        }
+      } else if (error.response?.status === 403) {
+        throw new Error("Anda tidak diizinkan menghapus pesanan ini");
+      } else if (error.response?.status === 404) {
+        throw new Error("Pesanan tidak ditemukan");
+      } else if (error.response?.status === 401) {
+        throw new Error("Sesi Anda telah berakhir. Silakan login kembali.");
+      }
+      
+      // Generic error
+      throw new Error(error.response?.data?.message || error.message || "Gagal menghapus pesanan");
+    }
   }
 };
 
