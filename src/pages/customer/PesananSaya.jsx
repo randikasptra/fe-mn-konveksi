@@ -58,12 +58,11 @@ function getSettledTransaksi(order) {
 }
 
 /* ================= STATUS BADGE - SESUAI BACKEND ================= */
-function StatusBadge({ status, transaksi }) {
+function StatusBadge({ status, transaksi, order }) {
   const settledTrans = (transaksi || []).filter(t => t.midtrans_status === "settlement");
   const totalPaid = settledTrans.reduce((sum, t) => sum + t.nominal, 0);
   
   // Tentukan status display berdasarkan backend status dan pembayaran
-  let displayStatus = status;
   let displayLabel = "";
   let color = "";
   let icon = "";
@@ -128,10 +127,10 @@ function StatusBadge({ status, transaksi }) {
 }
 
 /* ================= PROGRESS TRACKER YANG BENAR ================= */
-function ProgressTracker({ status, transaksi }) {
+function ProgressTracker({ status, transaksi, order }) {
   const settledTrans = (transaksi || []).filter(t => t.midtrans_status === "settlement");
   const totalPaid = settledTrans.reduce((sum, t) => sum + t.nominal, 0);
-  const orderTotal = 100; // Placeholder, akan diganti dengan order.total_harga dari props
+  const orderTotal = order?.total_harga || 0;
   
   // Steps berdasarkan status dan pembayaran
   const getSteps = () => {
@@ -271,7 +270,7 @@ function OrderCard({ order, onPay, processingId }) {
               </div>
             </div>
           </div>
-          <StatusBadge status={order.status_pesanan} transaksi={order.transaksi} />
+          <StatusBadge status={order.status_pesanan} transaksi={order.transaksi} order={order} />
         </div>
       </div>
 
@@ -333,7 +332,7 @@ function OrderCard({ order, onPay, processingId }) {
           </div>
         </div>
 
-        <ProgressTracker status={order.status_pesanan} transaksi={order.transaksi} />
+        <ProgressTracker status={order.status_pesanan} transaksi={order.transaksi} order={order} />
       </div>
 
       <div className="p-6 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200">
