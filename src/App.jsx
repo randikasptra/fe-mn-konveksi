@@ -34,7 +34,7 @@ import LoginPage from "./pages/auth/LoginPage";
 import RegisterPage from "./pages/auth/RegisterPage";
 
 /* ================= ADMIN PAGES ================= */
-import AdminLoginPage from "./pages/admin/AdminLogin";
+// import AdminLoginPage from "./pages/admin/AdminLogin";
 import Dashboard from "./pages/admin/Dashboard";
 import OrdersAdmin from "./pages/admin/OrdersAdmin";
 import ProductsAdmin from "./pages/admin/ProductsAdmin";
@@ -123,7 +123,7 @@ export default function App() {
         <Route element={<PublicLayout />}>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/register" element={<RegisterPage />} />
-          <Route path="/admin/login" element={<AdminLoginPage />} />
+          {/* <Route path="/admin/login" element={<AdminLoginPage />} /> */}
         </Route>
 
         {/* ================= CUSTOMER ROUTES (dengan navbar) ================= */}

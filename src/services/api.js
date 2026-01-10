@@ -1,6 +1,7 @@
 // src/services/api.js
 import axios from "axios";
 
+// ============= SINGLE SOURCE OF TRUTH =============
 const API_BASE = "https://be-mn-konveksi.vercel.app/api";
 
 // Create axios instance
@@ -11,7 +12,7 @@ const api = axios.create({
   },
 });
 
-// Add token to requests if available
+// ============= REQUEST INTERCEPTOR =============
 api.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("mn_token");
@@ -25,70 +26,225 @@ api.interceptors.request.use(
   }
 );
 
-// Handle response errors
+// ============= RESPONSE INTERCEPTOR =============
 api.interceptors.response.use(
   (response) => response,
   (error) => {
+    // Auto logout on 401
     if (error.response?.status === 401) {
       localStorage.removeItem("mn_token");
       localStorage.removeItem("mn_user");
       window.dispatchEvent(new Event("authChanged"));
+      // Optional: redirect to login
+      if (window.location.pathname !== "/login") {
+        window.location.href = "/login";
+      }
     }
     return Promise.reject(error);
   }
 );
 
-// Named exports untuk kompatibilitas
-export const produkService = {
-  getProduk: (params) => api.get("/produk", { params }),
-  getProdukDetail: (id) => api.get(`/produk/${id}`),
-  getProdukLimit: async (limit) => {
-    const response = await api.get(`/produk?limit=${limit || 8}`);
-    return response.data.data || [];
-  },
-  // Tambahkan method lain sesuai kebutuhan
-};
-
+// ============= AUTH SERVICE =============
 export const authService = {
-  isLoggedIn: () => !!localStorage.getItem("mn_token"),
-  login: (data) => api.post("/auth/login", data),
-  register: (data) => api.post("/auth/register", data),
-  logout: () => api.post("/auth/logout"),
-  me: () => api.get("/auth/me"),
+  isLoggedIn: () => {
+    const token = localStorage.getItem("mn_token");
+    const user = localStorage.getItem("mn_user");
+    return !!(token && user);
+  },
+  
+  login: async (data) => {
+    try {
+      const response = await api.post("/auth/login", data);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+  
+  register: async (data) => {
+    try {
+      const response = await api.post("/auth/register", data);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+  
+  logout: async () => {
+    try {
+      const response = await api.post("/auth/logout");
+      localStorage.removeItem("mn_token");
+      localStorage.removeItem("mn_user");
+      window.dispatchEvent(new Event("authChanged"));
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+  
+  me: async () => {
+    try {
+      const response = await api.get("/auth/me");
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
 };
 
+// ============= PRODUK SERVICE =============
+export const produkService = {
+  getProduk: async (params) => {
+    try {
+      const response = await api.get("/produk", { params });
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      throw error;
+    }
+  },
+  
+  getProdukDetail: async (id) => {
+    try {
+      const response = await api.get(`/produk/${id}`);
+      return response.data;
+    } catch (error) {
+      console.error("Error fetching product detail:", error);
+      throw error;
+    }
+  },
+  
+  getProdukLimit: async (limit = 8) => {
+    try {
+      const response = await api.get(`/produk?limit=${limit}`);
+      return response.data.data || [];
+    } catch (error) {
+      console.error("Error fetching products with limit:", error);
+      throw error;
+    }
+  },
+  
+  createProduk: async (data) => {
+    try {
+      const response = await api.post("/produk", data);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+  
+  updateProduk: async (id, data) => {
+    try {
+      const response = await api.put(`/produk/${id}`, data);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+  
+  deleteProduk: async (id) => {
+    try {
+      const response = await api.delete(`/produk/${id}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+};
+
+// ============= ORDER SERVICE =============
 export const orderService = {
-  createOrder: (data) => api.post("/pesanan/create", data),
-  getOrders: () => api.get("/pesanan/me"),
-  getOrderDetail: (id) => api.get(`/pesanan/${id}`),
+  createOrder: async (data) => {
+    try {
+      const response = await api.post("/pesanan/create", data);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+  
+  getOrders: async () => {
+    try {
+      const response = await api.get("/pesanan/me");
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+  
+  getOrderDetail: async (id) => {
+    try {
+      const response = await api.get(`/pesanan/${id}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+  
+  updateOrderStatus: async (id, status) => {
+    try {
+      const response = await api.put(`/pesanan/${id}/status`, { status });
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
 };
 
+// ============= PAYMENT SERVICE =============
 export const paymentService = {
-  createPayment: (data) => api.post("/transaksi/create", data),
-  getPaymentStatus: (orderId) => api.get(`/transaksi/status/${orderId}`),
+  createPayment: async (data) => {
+    try {
+      const response = await api.post("/transaksi/create", data);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+  
+  getPaymentStatus: async (orderId) => {
+    try {
+      const response = await api.get(`/transaksi/status/${orderId}`);
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
+  
+  getPaymentHistory: async () => {
+    try {
+      const response = await api.get("/transaksi/me");
+      return response.data;
+    } catch (error) {
+      throw error;
+    }
+  },
 };
 
-// Default export untuk kompatibilitas
+// ============= DEFAULT EXPORT (Legacy Support) =============
 const API = {
   // Auth
-  login: (data) => api.post("/auth/login", data),
-  register: (data) => api.post("/auth/register", data),
-  logout: () => api.post("/auth/logout"),
-  me: () => api.get("/auth/me"),
-
+  login: authService.login,
+  register: authService.register,
+  logout: authService.logout,
+  me: authService.me,
+  
   // Products
-  getProducts: (params) => api.get("/produk", { params }),
-  getProductDetail: (id) => api.get(`/produk/${id}`),
-  getProdukLimit: (limit) => api.get(`/produk?limit=${limit || 8}`),
-
+  getProducts: produkService.getProduk,
+  getProductDetail: produkService.getProdukDetail,
+  getProdukLimit: produkService.getProdukLimit,
+  
   // Orders
-  createOrder: (data) => api.post("/pesanan/create", data),
-  getOrders: () => api.get("/pesanan/me"),
-  getOrderDetail: (id) => api.get(`/pesanan/${id}`),
-
+  createOrder: orderService.createOrder,
+  getOrders: orderService.getOrders,
+  getOrderDetail: orderService.getOrderDetail,
+  
   // Transactions
-  createPayment: (data) => api.post("/transaksi/create", data),
-  getPaymentStatus: (orderId) => api.get(`/transaksi/status/${orderId}`),
+  createPayment: paymentService.createPayment,
+  getPaymentStatus: paymentService.getPaymentStatus,
 };
 
 export default API;
+
+// Export axios instance jika diperlukan
+export { api };

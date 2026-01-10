@@ -20,9 +20,28 @@ const formatDate = (dateString) => {
   });
 };
 
-function getJenisPembayaran(status) {
-  if (status === "MENUNGGU_DP") return "DP";
-  if (status === "MENUNGGU_PELUNASAN") return "PELUNASAN";
+/* ================= ANALISIS STATUS ================= */
+function getJenisPembayaran(order) {
+  // Analisis berdasarkan transaksi yang sudah ada
+  const transaksi = order.transaksi || [];
+  
+  // Cari transaksi yang sudah settlement
+  const settledTransactions = transaksi.filter(t => t.midtrans_status === "settlement");
+  
+  if (settledTransactions.length === 0) {
+    // Belum ada pembayaran sama sekali -> butuh DP
+    return "DP";
+  }
+  
+  // Hitung total yang sudah dibayar
+  const totalPaid = settledTransactions.reduce((sum, t) => sum + t.nominal, 0);
+  
+  if (totalPaid < order.total_harga) {
+    // Sudah bayar DP tapi belum lunas -> butuh pelunasan
+    return "PELUNASAN";
+  }
+  
+  // Sudah lunas
   return null;
 }
 
@@ -32,88 +51,173 @@ function getPendingTransaksi(order) {
   );
 }
 
-/* ================= STATUS BADGE ================= */
-function StatusBadge({ status }) {
-  const statusConfig = {
-    DIBUAT: {
-      label: "Menunggu Konfirmasi",
-      color: "bg-gray-100 text-gray-700",
-      icon: "mdi:clock-outline"
-    },
-    MENUNGGU_DP: {
-      label: "Menunggu DP",
-      color: "bg-yellow-100 text-yellow-700",
-      icon: "mdi:cash-clock"
-    },
-    MENUNGGU_PELUNASAN: {
-      label: "Menunggu Pelunasan",
-      color: "bg-orange-100 text-orange-700",
-      icon: "mdi:cash-multiple"
-    },
-    DIPROSES: {
-      label: "Diproses",
-      color: "bg-blue-100 text-blue-700",
-      icon: "mdi:factory"
-    },
-    SELESAI: {
-      label: "Selesai",
-      color: "bg-green-100 text-green-700",
-      icon: "mdi:check-circle"
-    },
-    PENDING_PAYMENT: {
-      label: "Pembayaran Tertunda",
-      color: "bg-purple-100 text-purple-700",
-      icon: "mdi:clock-alert"
-    }
-  };
+function getSettledTransaksi(order) {
+  return order.transaksi?.filter(
+    (t) => t.midtrans_status === "settlement"
+  ) || [];
+}
 
-  const config = statusConfig[status] || {
-    label: status.replaceAll("_", " "),
-    color: "bg-gray-100 text-gray-700",
-    icon: "mdi:information"
-  };
-
+/* ================= STATUS BADGE - SESUAI BACKEND ================= */
+function StatusBadge({ status, transaksi }) {
+  const settledTrans = (transaksi || []).filter(t => t.midtrans_status === "settlement");
+  const totalPaid = settledTrans.reduce((sum, t) => sum + t.nominal, 0);
+  
+  // Tentukan status display berdasarkan backend status dan pembayaran
+  let displayStatus = status;
+  let displayLabel = "";
+  let color = "";
+  let icon = "";
+  
+  switch(status) {
+    case "MENUNGGU_PEMBAYARAN":
+      if (settledTrans.length === 0) {
+        displayLabel = "Menunggu Pembayaran DP";
+        color = "bg-yellow-100 text-yellow-700";
+        icon = "mdi:cash-clock";
+      } else {
+        displayLabel = "Menunggu Pelunasan";
+        color = "bg-orange-100 text-orange-700";
+        icon = "mdi:cash-multiple";
+      }
+      break;
+      
+    case "DIPROSES":
+      displayLabel = "Sedang Diproses";
+      color = "bg-blue-100 text-blue-700";
+      icon = "mdi:factory";
+      
+      // Jika sedang diproses tapi belum lunas
+      if (totalPaid > 0 && totalPaid < (order?.total_harga || 0)) {
+        displayLabel = "Diproses (Menunggu Pelunasan)";
+        color = "bg-blue-100 text-blue-700";
+        icon = "mdi:factory";
+      }
+      break;
+      
+    case "SELESAI":
+      displayLabel = "Selesai";
+      color = "bg-green-100 text-green-700";
+      icon = "mdi:check-circle";
+      break;
+      
+    case "DIBATALKAN":
+      displayLabel = "Dibatalkan";
+      color = "bg-red-100 text-red-700";
+      icon = "mdi:cancel";
+      break;
+      
+    default:
+      displayLabel = status.replaceAll("_", " ");
+      color = "bg-gray-100 text-gray-700";
+      icon = "mdi:information";
+  }
+  
   return (
     <div className="flex items-center gap-2">
-      <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl ${config.color} font-medium`}>
-        <Icon icon={config.icon} className="text-lg" />
-        <span>{config.label}</span>
+      <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl ${color} font-medium`}>
+        <Icon icon={icon} className="text-lg" />
+        <span>{displayLabel}</span>
       </div>
+      {settledTrans.length > 0 && (
+        <span className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-full">
+          {settledTrans.length === 1 ? "DP Terbayar" : "Lunas"}
+        </span>
+      )}
     </div>
   );
 }
 
-/* ================= PROGRESS TRACKER ================= */
-function ProgressTracker({ status }) {
-  const steps = [
-    { id: "DIBUAT", label: "Dibuat", icon: "mdi:file-document-outline" },
-    { id: "MENUNGGU_DP", label: "DP", icon: "mdi:cash" },
-    { id: "MENUNGGU_PELUNASAN", label: "Pelunasan", icon: "mdi:cash-multiple" },
-    { id: "DIPROSES", label: "Diproses", icon: "mdi:factory" },
-    { id: "SELESAI", label: "Selesai", icon: "mdi:check-circle" }
-  ];
-
-  const currentIndex = steps.findIndex(step => step.id === status);
-  const activeIndex = currentIndex >= 0 ? currentIndex : 0;
-
+/* ================= PROGRESS TRACKER YANG BENAR ================= */
+function ProgressTracker({ status, transaksi }) {
+  const settledTrans = (transaksi || []).filter(t => t.midtrans_status === "settlement");
+  const totalPaid = settledTrans.reduce((sum, t) => sum + t.nominal, 0);
+  const orderTotal = 100; // Placeholder, akan diganti dengan order.total_harga dari props
+  
+  // Steps berdasarkan status dan pembayaran
+  const getSteps = () => {
+    if (status === "SELESAI") {
+      return [
+        { id: "ORDER_CREATED", label: "Pesanan Dibuat", icon: "mdi:file-document-outline" },
+        { id: "DP_PAID", label: "DP Dibayar", icon: "mdi:cash-check" },
+        { id: "IN_PROGRESS", label: "Diproses", icon: "mdi:factory" },
+        { id: "FULL_PAYMENT", label: "Pelunasan", icon: "mdi:cash-multiple" },
+        { id: "COMPLETED", label: "Selesai", icon: "mdi:check-circle" }
+      ];
+    }
+    
+    if (status === "DIPROSES") {
+      if (totalPaid >= orderTotal) {
+        return [
+          { id: "ORDER_CREATED", label: "Pesanan Dibuat", icon: "mdi:file-document-outline" },
+          { id: "DP_PAID", label: "DP Dibayar", icon: "mdi:cash-check" },
+          { id: "FULL_PAYMENT", label: "Lunas", icon: "mdi:cash-multiple" },
+          { id: "IN_PROGRESS", label: "Diproses", icon: "mdi:factory" },
+          { id: "COMPLETED", label: "Selesai", icon: "mdi:check-circle" }
+        ];
+      } else {
+        return [
+          { id: "ORDER_CREATED", label: "Pesanan Dibuat", icon: "mdi:file-document-outline" },
+          { id: "DP_PAID", label: "DP Dibayar", icon: "mdi:cash-check" },
+          { id: "IN_PROGRESS", label: "Diproses", icon: "mdi:factory" },
+          { id: "FULL_PAYMENT", label: "Pelunasan", icon: "mdi:cash-multiple" },
+          { id: "COMPLETED", label: "Selesai", icon: "mdi:check-circle" }
+        ];
+      }
+    }
+    
+    // Default untuk MENUNGGU_PEMBAYARAN
+    if (settledTrans.length === 0) {
+      return [
+        { id: "ORDER_CREATED", label: "Pesanan Dibuat", icon: "mdi:file-document-outline" },
+        { id: "DP_PAID", label: "Bayar DP", icon: "mdi:cash" },
+        { id: "IN_PROGRESS", label: "Diproses", icon: "mdi:factory" },
+        { id: "FULL_PAYMENT", label: "Pelunasan", icon: "mdi:cash-multiple" },
+        { id: "COMPLETED", label: "Selesai", icon: "mdi:check-circle" }
+      ];
+    } else {
+      return [
+        { id: "ORDER_CREATED", label: "Pesanan Dibuat", icon: "mdi:file-document-outline" },
+        { id: "DP_PAID", label: "DP Terbayar", icon: "mdi:cash-check" },
+        { id: "FULL_PAYMENT", label: "Bayar Pelunasan", icon: "mdi:cash-multiple" },
+        { id: "IN_PROGRESS", label: "Diproses", icon: "mdi:factory" },
+        { id: "COMPLETED", label: "Selesai", icon: "mdi:check-circle" }
+      ];
+    }
+  };
+  
+  const steps = getSteps();
+  
+  // Tentukan current step berdasarkan status dan pembayaran
+  let currentStep = 0;
+  
+  if (status === "SELESAI") {
+    currentStep = 4;
+  } else if (status === "DIPROSES") {
+    currentStep = totalPaid >= orderTotal ? 3 : 2;
+  } else if (status === "MENUNGGU_PEMBAYARAN") {
+    currentStep = settledTrans.length === 0 ? 1 : 2;
+  }
+  
   return (
     <div className="mt-6">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-semibold text-gray-700">Status Pengerjaan</h3>
-        <span className="text-sm text-gray-500">{steps[activeIndex]?.label || "Dibuat"}</span>
+        <span className="text-sm font-medium text-gray-900">
+          {steps[currentStep]?.label || "Pesanan Dibuat"}
+        </span>
       </div>
       
       <div className="relative">
         <div className="absolute top-5 left-0 w-full h-1 bg-gray-200 rounded-full"></div>
         <div 
           className="absolute top-5 left-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500"
-          style={{ width: `${(activeIndex / (steps.length - 1)) * 100}%` }}
+          style={{ width: `${(currentStep / (steps.length - 1)) * 100}%` }}
         ></div>
         
         <div className="relative flex justify-between">
           {steps.map((step, index) => {
-            const isActive = index <= activeIndex;
-            const isCurrent = index === activeIndex;
+            const isActive = index <= currentStep;
+            const isCurrent = index === currentStep;
             
             return (
               <div key={step.id} className="flex flex-col items-center relative z-10">
@@ -139,10 +243,14 @@ function ProgressTracker({ status }) {
   );
 }
 
-/* ================= ORDER CARD ================= */
+/* ================= ORDER CARD YANG DIPERBAIKI ================= */
 function OrderCard({ order, onPay, processingId }) {
   const pending = getPendingTransaksi(order);
-  const canPay = pending || getJenisPembayaran(order.status_pesanan);
+  const settledTrans = getSettledTransaksi(order);
+  const totalPaid = settledTrans.reduce((sum, t) => sum + t.nominal, 0);
+  const remainingPayment = order.total_harga - totalPaid;
+  const jenisPembayaran = getJenisPembayaran(order);
+  const canPay = jenisPembayaran && remainingPayment > 0;
 
   return (
     <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300">
@@ -163,7 +271,7 @@ function OrderCard({ order, onPay, processingId }) {
               </div>
             </div>
           </div>
-          <StatusBadge status={pending ? "PENDING_PAYMENT" : order.status_pesanan} />
+          <StatusBadge status={order.status_pesanan} transaksi={order.transaksi} />
         </div>
       </div>
 
@@ -195,32 +303,37 @@ function OrderCard({ order, onPay, processingId }) {
                 <span className="text-xl font-bold text-indigo-600">{formatIDR(order.total_harga)}</span>
               </div>
               
-              {order.status_pesanan === "MENUNGGU_DP" && (
-                <div className="flex justify-between">
-                  <span className="text-gray-600">DP 50%</span>
-                  <span className="font-semibold text-yellow-600">{formatIDR(order.dp_wajib)}</span>
+              {/* Tampilkan DP jika sudah ada pembayaran */}
+              {settledTrans.length > 0 && (
+                <div className="pt-3 border-t border-gray-100 space-y-2">
+                  <div className="flex justify-between">
+                    <span className="text-gray-600">Total Dibayar</span>
+                    <span className="font-semibold text-green-600">{formatIDR(totalPaid)}</span>
+                  </div>
+                  
+                  {remainingPayment > 0 && (
+                    <div className="flex justify-between">
+                      <span className="text-gray-600">Sisa Pembayaran</span>
+                      <span className="font-semibold text-orange-600">{formatIDR(remainingPayment)}</span>
+                    </div>
+                  )}
+                  
+                  {jenisPembayaran && (
+                    <div className="mt-3 p-3 bg-blue-50 rounded-lg">
+                      <p className="text-sm font-medium text-blue-700">
+                        {jenisPembayaran === "DP" 
+                          ? "Bayar DP 50% untuk memulai produksi" 
+                          : "Lunasi pembayaran untuk menyelesaikan pesanan"}
+                      </p>
+                    </div>
+                  )}
                 </div>
-              )}
-              
-              {order.status_pesanan === "MENUNGGU_PELUNASAN" && (
-                <>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">DP Dibayar</span>
-                    <span className="font-semibold text-green-600">{formatIDR(order.dp_wajib)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Sisa Pelunasan</span>
-                    <span className="font-semibold text-orange-600">
-                      {formatIDR(order.total_harga - order.dp_wajib)}
-                    </span>
-                  </div>
-                </>
               )}
             </div>
           </div>
         </div>
 
-        <ProgressTracker status={order.status_pesanan} />
+        <ProgressTracker status={order.status_pesanan} transaksi={order.transaksi} />
       </div>
 
       <div className="p-6 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200">
@@ -240,7 +353,7 @@ function OrderCard({ order, onPay, processingId }) {
           {canPay && (
             <button
               disabled={processingId === order.id_pesanan}
-              onClick={() => onPay(order)}
+              onClick={() => onPay(order, jenisPembayaran)}
               className={`
                 inline-flex items-center justify-center gap-3
                 px-6 py-3 font-semibold rounded-xl
@@ -262,7 +375,7 @@ function OrderCard({ order, onPay, processingId }) {
                   <Icon icon={pending ? "mdi:cash-fast" : "mdi:cash"} className="text-xl" />
                   {pending
                     ? "Lanjutkan Pembayaran"
-                    : getJenisPembayaran(order.status_pesanan) === "DP"
+                    : jenisPembayaran === "DP"
                     ? "Bayar DP 50%"
                     : "Bayar Pelunasan"}
                 </>
@@ -276,6 +389,18 @@ function OrderCard({ order, onPay, processingId }) {
               <div>
                 <p className="text-sm font-medium text-emerald-700">Pesanan Selesai</p>
                 <p className="text-xs text-emerald-600">Terima kasih telah memesan di MN Konveksi</p>
+              </div>
+            </div>
+          )}
+          
+          {order.status_pesanan === "DIPROSES" && totalPaid >= order.total_harga && (
+            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
+              <Icon icon="mdi:factory" className="text-blue-600 text-xl" />
+              <div>
+                <p className="text-sm font-medium text-blue-700">Sedang Diproses</p>
+                <p className="text-xs text-blue-600">
+                  Pesanan Anda sedang dalam proses produksi
+                </p>
               </div>
             </div>
           )}
@@ -308,7 +433,23 @@ export default function PesananSaya() {
       const response = await API.getOrders();
       
       if (response.data?.success) {
-        setOrders(response.data.data || []);
+        // Normalize status - ubah dari frontend ke backend jika perlu
+        const normalizedOrders = (response.data.data || []).map(order => {
+          // Jika ada status frontend lama, ubah ke backend
+          let status = order.status_pesanan;
+          
+          // Mapping dari frontend ke backend
+          if (status === "DIBUAT") status = "MENUNGGU_PEMBAYARAN";
+          if (status === "MENUNGGU_DP") status = "MENUNGGU_PEMBAYARAN";
+          if (status === "MENUNGGU_PELUNASAN") status = "MENUNGGU_PEMBAYARAN";
+          
+          return {
+            ...order,
+            status_pesanan: status
+          };
+        });
+        
+        setOrders(normalizedOrders);
       } else {
         setOrders([]);
       }
@@ -332,13 +473,20 @@ export default function PesananSaya() {
     return () => clearInterval(interval);
   }, []);
 
+  // Filter orders dengan logika yang benar
   const filteredOrders = orders.filter(order => {
     if (activeTab === "all") return true;
     if (activeTab === "pending") {
-      return ["DIBUAT", "MENUNGGU_DP", "MENUNGGU_PELUNASAN"].includes(order.status_pesanan) ||
-             getPendingTransaksi(order);
+      // Menunggu pembayaran atau menunggu pelunasan
+      const settledTrans = getSettledTransaksi(order);
+      const totalPaid = settledTrans.reduce((sum, t) => sum + t.nominal, 0);
+      
+      return order.status_pesanan === "MENUNGGU_PEMBAYARAN" || 
+             (order.status_pesanan === "DIPROSES" && totalPaid < order.total_harga);
     }
-    if (activeTab === "processing") return order.status_pesanan === "DIPROSES";
+    if (activeTab === "processing") {
+      return order.status_pesanan === "DIPROSES";
+    }
     if (activeTab === "completed") return order.status_pesanan === "SELESAI";
     return true;
   });
@@ -369,7 +517,7 @@ export default function PesananSaya() {
     }
   }
 
-  async function handlePay(order) {
+  async function handlePay(order, jenis) {
     const pending = getPendingTransaksi(order);
 
     if (pending?.snap_token) {
@@ -377,8 +525,15 @@ export default function PesananSaya() {
       return;
     }
 
-    const jenis = getJenisPembayaran(order.status_pesanan);
-    if (!jenis) return;
+    if (!jenis) {
+      // Auto-detect jenis pembayaran jika tidak diberikan
+      jenis = getJenisPembayaran(order);
+    }
+    
+    if (!jenis) {
+      alert("Pesanan ini tidak memerlukan pembayaran");
+      return;
+    }
 
     try {
       setProcessingId(order.id_pesanan);
@@ -386,6 +541,10 @@ export default function PesananSaya() {
       const response = await API.createPayment({
         id_pesanan: order.id_pesanan,
         jenis_pembayaran: jenis,
+        // Tambahkan nominal jika perlu berdasarkan jenis
+        nominal: jenis === "DP" 
+          ? Math.ceil(order.total_harga * 0.5)  // 50% untuk DP
+          : order.total_harga - getSettledTransaksi(order).reduce((sum, t) => sum + t.nominal, 0)  // Sisa untuk pelunasan
       });
 
       if (response.data?.success && response.data.data?.snap_token) {
@@ -434,6 +593,23 @@ export default function PesananSaya() {
     );
   }
 
+  // Hitung statistik dengan logika yang benar
+  const stats = {
+    total: orders.length,
+    waiting: orders.filter(order => {
+      const settledTrans = getSettledTransaksi(order);
+      const totalPaid = settledTrans.reduce((sum, t) => sum + t.nominal, 0);
+      return order.status_pesanan === "MENUNGGU_PEMBAYARAN" || 
+             (order.status_pesanan === "DIPROSES" && totalPaid < order.total_harga);
+    }).length,
+    processing: orders.filter(order => {
+      const settledTrans = getSettledTransaksi(order);
+      const totalPaid = settledTrans.reduce((sum, t) => sum + t.nominal, 0);
+      return order.status_pesanan === "DIPROSES" && totalPaid >= order.total_harga;
+    }).length,
+    completed: orders.filter(order => order.status_pesanan === "SELESAI").length
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-8">
       <div className="container mx-auto px-4">
@@ -453,7 +629,7 @@ export default function PesananSaya() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-500">Total Pesanan</p>
-                  <p className="text-2xl font-bold text-gray-900">{orders.length}</p>
+                  <p className="text-2xl font-bold text-gray-900">{stats.total}</p>
                 </div>
                 <Icon icon="mdi:package-variant" className="text-3xl text-indigo-500" />
               </div>
@@ -462,22 +638,18 @@ export default function PesananSaya() {
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">Menunggu</p>
-                  <p className="text-2xl font-bold text-yellow-600">
-                    {orders.filter(o => ["DIBUAT", "MENUNGGU_DP", "MENUNGGU_PELUNASAN"].includes(o.status_pesanan)).length}
-                  </p>
+                  <p className="text-sm text-gray-500">Menunggu Pembayaran</p>
+                  <p className="text-2xl font-bold text-yellow-600">{stats.waiting}</p>
                 </div>
-                <Icon icon="mdi:clock-outline" className="text-3xl text-yellow-500" />
+                <Icon icon="mdi:cash-clock" className="text-3xl text-yellow-500" />
               </div>
             </div>
             
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm text-gray-500">Diproses</p>
-                  <p className="text-2xl font-bold text-blue-600">
-                    {orders.filter(o => o.status_pesanan === "DIPROSES").length}
-                  </p>
+                  <p className="text-sm text-gray-500">Sedang Diproses</p>
+                  <p className="text-2xl font-bold text-blue-600">{stats.processing}</p>
                 </div>
                 <Icon icon="mdi:factory" className="text-3xl text-blue-500" />
               </div>
@@ -487,9 +659,7 @@ export default function PesananSaya() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-500">Selesai</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {orders.filter(o => o.status_pesanan === "SELESAI").length}
-                  </p>
+                  <p className="text-2xl font-bold text-green-600">{stats.completed}</p>
                 </div>
                 <Icon icon="mdi:check-circle" className="text-3xl text-green-500" />
               </div>
@@ -505,7 +675,7 @@ export default function PesananSaya() {
                   : "border-transparent text-gray-500 hover:text-gray-700"
               }`}
             >
-              Semua ({orders.length})
+              Semua ({stats.total})
             </button>
             <button
               onClick={() => setActiveTab("pending")}
@@ -515,7 +685,7 @@ export default function PesananSaya() {
                   : "border-transparent text-gray-500 hover:text-gray-700"
               }`}
             >
-              Menunggu ({orders.filter(o => ["DIBUAT", "MENUNGGU_DP", "MENUNGGU_PELUNASAN"].includes(o.status_pesanan)).length})
+              Menunggu ({stats.waiting})
             </button>
             <button
               onClick={() => setActiveTab("processing")}
@@ -525,7 +695,7 @@ export default function PesananSaya() {
                   : "border-transparent text-gray-500 hover:text-gray-700"
               }`}
             >
-              Diproses ({orders.filter(o => o.status_pesanan === "DIPROSES").length})
+              Diproses ({stats.processing})
             </button>
             <button
               onClick={() => setActiveTab("completed")}
@@ -535,7 +705,7 @@ export default function PesananSaya() {
                   : "border-transparent text-gray-500 hover:text-gray-700"
               }`}
             >
-              Selesai ({orders.filter(o => o.status_pesanan === "SELESAI").length})
+              Selesai ({stats.completed})
             </button>
           </div>
         </div>
@@ -551,7 +721,7 @@ export default function PesananSaya() {
             <p className="text-gray-600 mb-6 max-w-md mx-auto">
               {activeTab === "all" 
                 ? "Mulai pesan produk favorit Anda di halaman produk" 
-                : `Tidak ada pesanan dengan status ${activeTab === "pending" ? "menunggu" : activeTab === "processing" ? "diproses" : "selesai"}`}
+                : `Tidak ada pesanan dengan status ${activeTab === "pending" ? "menunggu pembayaran" : activeTab === "processing" ? "diproses" : "selesai"}`}
             </p>
             {activeTab !== "all" && (
               <button
@@ -582,6 +752,14 @@ export default function PesananSaya() {
               <p className="text-gray-600">
                 Hubungi kami jika mengalami kendala dalam proses pesanan atau pembayaran.
               </p>
+              <div className="mt-3 text-sm text-gray-500">
+                <p className="mb-1">📞 Alur Pembayaran:</p>
+                <ol className="list-decimal pl-5 space-y-1">
+                  <li>Bayar DP 50% untuk memulai produksi</li>
+                  <li>Pelunasan dapat dilakukan kapan saja sebelum pesanan selesai</li>
+                  <li>Produksi dimulai setelah DP diterima</li>
+                </ol>
+              </div>
             </div>
             <div className="flex gap-4">
               <button

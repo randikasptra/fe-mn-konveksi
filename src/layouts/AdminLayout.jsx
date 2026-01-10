@@ -41,70 +41,6 @@ const AdminLayout = ({ children }) => {
   return (
     <div className="min-h-screen bg-gray-100">
       {/* Sidebar untuk Desktop */}
-      <div
-        className={`fixed inset-y-0 left-0 z-50 w-64 bg-gray-900 transition-transform duration-300 transform ${
-          sidebarOpen ? "translate-x-0" : "-translate-x-full"
-        } lg:translate-x-0 lg:static lg:inset-auto`}
-      >
-        {/* Logo */}
-        <div className="flex items-center justify-between h-16 px-4 border-b border-gray-800">
-          <Link to="/admin/dashboard" className="flex items-center space-x-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold">MN</span>
-            </div>
-            <span className="text-xl font-bold text-white">Admin Panel</span>
-          </Link>
-          <button
-            onClick={() => setSidebarOpen(false)}
-            className="lg:hidden text-gray-400 hover:text-white"
-          >
-            <XMarkIcon className="w-6 h-6" />
-          </button>
-        </div>
-
-        {/* Navigation */}
-        <nav className="px-4 py-6">
-          <ul className="space-y-2">
-            {navigation.map((item) => {
-              const isActive = location.pathname === item.href;
-              return (
-                <li key={item.name}>
-                  <Link
-                    to={item.href}
-                    className={`flex items-center space-x-3 px-3 py-3 rounded-lg transition-colors ${
-                      isActive
-                        ? "bg-blue-600 text-white"
-                        : "text-gray-300 hover:bg-gray-800 hover:text-white"
-                    }`}
-                  >
-                    <item.icon className="w-5 h-5" />
-                    <span className="font-medium">{item.name}</span>
-                  </Link>
-                </li>
-              );
-            })}
-          </ul>
-        </nav>
-
-        {/* User Info */}
-        <div className="absolute bottom-0 w-full p-4 border-t border-gray-800">
-          <div className="flex items-center space-x-3">
-            <div className="w-10 h-10 bg-blue-600 rounded-full flex items-center justify-center">
-              <span className="text-white font-semibold">
-                {user?.nama?.charAt(0) || "A"}
-              </span>
-            </div>
-            <div className="flex-1">
-              <p className="text-sm font-medium text-white">
-                {user?.nama || "Admin"}
-              </p>
-              <p className="text-xs text-gray-400">
-                {user?.email || "admin@konveksi.com"}
-              </p>
-            </div>
-          </div>
-        </div>
-      </div>
 
       {/* Main Content */}
       <div className="lg:pl-64">
@@ -223,12 +159,6 @@ const AdminLayout = ({ children }) => {
       </div>
 
       {/* Overlay for mobile sidebar */}
-      {sidebarOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black bg-opacity-50 lg:hidden"
-          onClick={() => setSidebarOpen(false)}
-        ></div>
-      )}
     </div>
   );
 };
