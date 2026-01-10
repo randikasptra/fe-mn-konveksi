@@ -416,11 +416,15 @@ export default function PesananSaya() {
   const [processingId, setProcessingId] = useState(null);
   const [activeTab, setActiveTab] = useState("all");
   const [error, setError] = useState(null);
+  const [debugInfo, setDebugInfo] = useState(null);
 
   async function loadOrders() {
     try {
       setError(null);
+      setDebugInfo(null);
       const token = localStorage.getItem("mn_token");
+      
+      console.log("Token dari localStorage:", token ? "Ada" : "Tidak ada");
       
       if (!token) {
         setOrders([]);
@@ -429,32 +433,112 @@ export default function PesananSaya() {
         return;
       }
 
+      console.log("Memanggil API.getOrders()...");
       const response = await API.getOrders();
       
-      if (response.data?.success) {
-        // Normalize status - ubah dari frontend ke backend jika perlu
-        const normalizedOrders = (response.data.data || []).map(order => {
-          // Jika ada status frontend lama, ubah ke backend
-          let status = order.status_pesanan;
-          
-          // Mapping dari frontend ke backend
-          if (status === "DIBUAT") status = "MENUNGGU_PEMBAYARAN";
-          if (status === "MENUNGGU_DP") status = "MENUNGGU_PEMBAYARAN";
-          if (status === "MENUNGGU_PELUNASAN") status = "MENUNGGU_PEMBAYARAN";
-          
-          return {
-            ...order,
-            status_pesanan: status
-          };
+      // Debug: Log response lengkap
+      console.log("FULL Response:", response);
+      console.log("Response.data:", response.data);
+      console.log("Type of response.data:", typeof response.data);
+      console.log("Is array?", Array.isArray(response.data));
+      
+      // Simpan debug info
+      set
+      ({
+        timestamp: new Date().toISOString(),
+        responseData: response.data,
+        rawResponse: JSON.stringify(response.data, null, 2),
+        type: typeof response.data,
+        isArray: Array.isArray(response.data)
+      });
+      
+      // PERBAIKAN: Handle berbagai kemungkinan struktur response
+      let ordersData = [];
+      
+      // Kasus 1: {success: true, data: [...]}
+      if (response.data && response.data.success && Array.isArray(response.data.data)) {
+        console.log("Struktur: {success: true, data: [...]}");
+        ordersData = response.data.data;
+      }
+      // Kasus 2: response.data langsung array
+      else if (Array.isArray(response.data)) {
+        console.log("Struktur: langsung array");
+        ordersData = response.data;
+      }
+      // Kasus 3: {data: [...]}
+      else if (response.data && Array.isArray(response.data.data)) {
+        console.log("Struktur: {data: [...]}");
+        ordersData = response.data.data;
+      }
+      // Kasus 4: Ada properti lain yang berisi array
+      else if (response.data && typeof response.data === 'object') {
+        // Cari properti pertama yang berisi array
+        for (const key in response.data) {
+          if (Array.isArray(response.data[key])) {
+            console.log(`Struktur: {'${key}': [...]}`);
+            ordersData = response.data[key];
+            break;
+          }
+        }
+      }
+      
+      console.log("Orders data yang didapat:", ordersData);
+      console.log("Jumlah pesanan:", ordersData.length);
+      
+      // Periksa struktur data pesanan
+      if (ordersData.length > 0) {
+        console.log("Contoh pesanan pertama:", {
+          id: ordersData[0].id_pesanan,
+          status: ordersData[0].status_pesanan,
+          total_harga: ordersData[0].total_harga,
+          produk_nama: ordersData[0].produk?.nama_produk,
+          transaksi: ordersData[0].transaksi,
+          tanggal_pesan: ordersData[0].tanggal_pesan,
+          catatan: ordersData[0].catatan,
+          qty: ordersData[0].qty
+        });
+      }
+      
+      // Normalize status
+      const normalizedOrders = ordersData.map(order => {
+        console.log("Processing order:", {
+          id: order.id_pesanan,
+          original_status: order.status_pesanan,
+          has_produk: !!order.produk,
+          has_transaksi: !!(order.transaksi && order.transaksi.length > 0)
         });
         
-        setOrders(normalizedOrders);
-      } else {
-        setOrders([]);
-      }
+        let status = order.status_pesanan || "";
+        
+        // Mapping dari frontend ke backend jika perlu
+        if (status === "DIBUAT") status = "MENUNGGU_PEMBAYARAN";
+        if (status === "MENUNGGU_DP") status = "MENUNGGU_PEMBAYARAN";
+        if (status === "MENUNGGU_PELUNASAN") status = "MENUNGGU_PEMBAYARAN";
+        
+        console.log(`Order ${order.id_pesanan}: ${order.status_pesanan} -> ${status}`);
+        
+        return {
+          ...order,
+          status_pesanan: status
+        };
+      });
+      
+      setOrders(normalizedOrders);
+      console.log("Orders setelah normalization:", normalizedOrders);
+      
     } catch (error) {
       console.error("Error loading orders:", error);
+      console.error("Error response:", error.response);
+      console.error("Error message:", error.message);
+      
       setOrders([]);
+      
+      setDebugInfo({
+        timestamp: new Date().toISOString(),
+        error: error.message,
+        response: error.response?.data,
+        status: error.response?.status
+      });
       
       if (error.response?.status === 401) {
         setError("Sesi Anda telah berakhir. Silakan login kembali.");
@@ -572,6 +656,9 @@ export default function PesananSaya() {
     );
   }
 
+  // Tampilkan debug info di development
+  const showDebug = debugInfo && process.env.NODE_ENV === 'development';
+
   if (error) {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-12">
@@ -580,12 +667,30 @@ export default function PesananSaya() {
             <Icon icon="mdi:alert-circle" className="text-red-500 text-6xl mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Terjadi Kesalahan</h3>
             <p className="text-gray-600 mb-6">{error}</p>
-            <button
-              onClick={() => window.location.href = "/login"}
-              className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-colors"
-            >
-              Login
-            </button>
+            
+            {showDebug && (
+              <div className="mt-6 p-4 bg-gray-50 rounded-lg text-left">
+                <h4 className="font-semibold text-gray-700 mb-2">Debug Info:</h4>
+                <pre className="text-xs text-gray-600 bg-gray-100 p-3 rounded overflow-auto max-h-60">
+                  {JSON.stringify(debugInfo, null, 2)}
+                </pre>
+              </div>
+            )}
+            
+            <div className="mt-6">
+              <button
+                onClick={loadOrders}
+                className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-colors mr-3"
+              >
+                Coba Lagi
+              </button>
+              <button
+                onClick={() => window.location.href = "/login"}
+                className="px-6 py-3 bg-white text-indigo-600 border border-indigo-600 rounded-xl hover:bg-indigo-50 transition-colors"
+              >
+                Login
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -623,6 +728,9 @@ export default function PesananSaya() {
             </div>
           </div>
 
+          {/* Debug Info Section */}
+
+          {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
               <div className="flex items-center justify-between">
@@ -665,6 +773,7 @@ export default function PesananSaya() {
             </div>
           </div>
 
+          {/* Tabs */}
           <div className="flex overflow-x-auto border-b border-gray-200 mb-8">
             <button
               onClick={() => setActiveTab("all")}
@@ -709,6 +818,7 @@ export default function PesananSaya() {
           </div>
         </div>
 
+        {/* Orders List */}
         {filteredOrders.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-2xl shadow-sm border border-gray-200">
             <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -744,6 +854,7 @@ export default function PesananSaya() {
           </div>
         )}
 
+        {/* Help Section */}
         <div className="mt-12 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-8 border border-indigo-100">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
