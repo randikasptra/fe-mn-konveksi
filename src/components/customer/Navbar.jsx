@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Icon } from "@iconify/react";
-
-const API_BASE = "https://be-mn-konveksi.vercel.app/api";
+import { orderService } from "../../services/api"; // ✅ IMPORT DARI UNIFIED API
+import Logo from "../../assets/LOGO-MN.png"; // ✅ IMPORT LOGO
 
 export default function CustomerNavbar() {
   const navigate = useNavigate();
@@ -44,7 +44,7 @@ export default function CustomerNavbar() {
           setIsLoggedIn(true);
           setUserName(user?.nama || "Pelanggan");
           setUserEmail(user?.email || "");
-          fetchPendingOrders(token);
+          fetchPendingOrders();
         } catch (err) {
           console.error("Error parsing user data:", err);
           clearAuth();
@@ -66,23 +66,15 @@ export default function CustomerNavbar() {
   }, []);
 
   /* ================= FETCH PENDING ORDERS ================= */
-  async function fetchPendingOrders(token) {
+  async function fetchPendingOrders() {
     try {
-      const res = await fetch(`${API_BASE}/pesanan/me`, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-      });
-
-      if (res.ok) {
-        const json = await res.json();
-        const pending = (json.data || []).filter((o) =>
-          ["MENUNGGU_DP", "MENUNGGU_PELUNASAN"].includes(o.status_pesanan)
-        );
-        setPendingOrders(pending);
-        setCartCount(pending.length);
-      }
+      // ✅ GUNAKAN orderService.getOrders() DARI UNIFIED API
+      const json = await orderService.getOrders();
+      const pending = (json.data || []).filter((o) =>
+        ["MENUNGGU_DP", "MENUNGGU_PELUNASAN"].includes(o.status_pesanan)
+      );
+      setPendingOrders(pending);
+      setCartCount(pending.length);
     } catch (err) {
       console.error("Error fetching orders:", err);
     }
@@ -93,7 +85,7 @@ export default function CustomerNavbar() {
     function handleOrderCreated() {
       const token = localStorage.getItem("mn_token");
       if (token) {
-        fetchPendingOrders(token);
+        fetchPendingOrders();
         showNotificationMessage("🎉 Pesanan berhasil ditambahkan!");
       }
     }
@@ -175,13 +167,16 @@ export default function CustomerNavbar() {
     { name: "Tentang", path: "/tentang", icon: "mdi:information" },
     { name: "Kontak", path: "/kontak", icon: "mdi:phone" },
   ];
-const profileLinks = [
-  { name: "Profil Saya", path: "/profil", icon: "mdi:account" },
-  {
-    name: "Pesanan Saya",
-    path: "/pesanan-saya",
-    icon: "mdi:package-variant",
-  },];
+
+  const profileLinks = [
+    { name: "Profil Saya", path: "/profil", icon: "mdi:account" },
+    {
+      name: "Pesanan Saya",
+      path: "/pesanan-saya",
+      icon: "mdi:package-variant",
+    },
+  ];
+
   return (
     <>
       {/* NOTIFICATION TOAST */}
@@ -204,13 +199,14 @@ const profileLinks = [
         <div className="container mx-auto px-4">
           {/* TOP BAR */}
           <div className="flex items-center justify-between h-20">
-            {/* LOGO */}
+            {/* LOGO - ✅ MENGGUNAKAN LOGO.PNG */}
             <Link to="/" className="flex items-center gap-3 group">
               <div className="relative">
-                <div className="w-10 h-10 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                  <Icon icon="mdi:needle" className="text-white text-xl" />
-                </div>
-                <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-white"></div>
+                <img
+                  src={Logo}
+                  alt="MN Konveksi Logo"
+                  className="w-10 h-10 object-contain group-hover:scale-110 transition-transform duration-300"
+                />
               </div>
               <div className="hidden md:block">
                 <h1 className="text-xl font-bold bg-gradient-to-r from-indigo-700 to-purple-700 bg-clip-text text-transparent">
