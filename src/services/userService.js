@@ -148,7 +148,7 @@ class UserService {
   async logout() {
     try {
       const token = localStorage.getItem("mn_token");
-      
+
       if (token) {
         await fetch(`${API_BASE}/auth/logout`, {
           method: "POST",
@@ -174,7 +174,7 @@ class UserService {
   getCurrentUser() {
     const userStr = localStorage.getItem("mn_user");
     if (!userStr) return null;
-    
+
     try {
       return JSON.parse(userStr);
     } catch (error) {
@@ -182,6 +182,46 @@ class UserService {
       return null;
     }
   }
+
+
+  /**
+ * Get all users (ADMIN)
+ */
+  async getAllUsers() {
+    try {
+      const token = localStorage.getItem("mn_token");
+      if (!token) {
+        throw new Error("Silakan login terlebih dahulu");
+      }
+
+      const response = await fetch(`${API_BASE}/admin/users`, {
+        method: "GET",
+        headers: {
+          "Authorization": `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const json = await response.json();
+
+      if (!response.ok) {
+        throw new Error(json.message || "Gagal memuat data pengguna");
+      }
+
+      return {
+        success: true,
+        data: json.data,
+      };
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      return {
+        success: false,
+        message: error.message,
+        data: [],
+      };
+    }
+  }
+
 
   /**
    * Check if user is logged in
@@ -197,15 +237,15 @@ class UserService {
    */
   formatPhone(phone) {
     if (!phone) return "-";
-    
+
     // Remove non-digits
     const cleaned = phone.replace(/\D/g, "");
-    
+
     // Format: 0812-3456-7890
     if (cleaned.length === 12 || cleaned.length === 13) {
       return cleaned.replace(/(\d{4})(\d{4})(\d{4})/, "$1-$2-$3");
     }
-    
+
     return phone;
   }
 }
