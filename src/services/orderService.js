@@ -280,16 +280,16 @@ const OrderService = {
       // Try different possible field names
       const nominalValue = t.nominal || t.jumlah || t.amount || t.total || 0;
       const nominal = Number(nominalValue) || 0;
-
+      
       console.log(`Transaction ${t.id_transaksi}:`, {
         raw: t,
         nominalField: t.nominal,
         jumlahField: t.jumlah,
         amountField: t.amount,
         detected: nominalValue,
-        parsed: nominal,
+        parsed: nominal
       });
-
+      
       return sum + nominal;
     }, 0);
 
@@ -302,13 +302,13 @@ const OrderService = {
       remaining,
       isFullyPaid: totalPaid >= order.total_harga,
       settledCount: settledTransactions.length,
-      transactions: transaksi.map((t) => ({
+      transactions: transaksi.map(t => ({
         id: t.id_transaksi,
         nominal: t.nominal,
         jumlah: t.jumlah,
         amount: t.amount,
-        status: t.midtrans_status,
-      })),
+        status: t.midtrans_status
+      }))
     });
 
     return {
