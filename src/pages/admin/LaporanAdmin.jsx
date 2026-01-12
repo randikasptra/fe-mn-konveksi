@@ -9,8 +9,10 @@ import {
   Download,
   BarChart3,
   RefreshCw,
+  Printer,
 } from "lucide-react";
 import laporanService from "../../services/laporanService";
+import logo from "../../assets/LOGO-MN.png"; // Import logo
 
 // =====================
 // UTIL
@@ -67,7 +69,7 @@ const LaporanAdmin = () => {
   };
 
   // =====================
-  // EXPORT LAPORAN
+  // EXPORT LAPORAN (DENGAN LOGO)
   // =====================
   const exportLaporan = async (format) => {
     if (!from || !to) {
@@ -79,11 +81,31 @@ const LaporanAdmin = () => {
     setExporting((prev) => ({ ...prev, [exportKey]: true }));
 
     try {
+      // Konversi logo ke base64 untuk dikirim ke backend
+      let logoBase64 = null;
+      try {
+        // Mengambil logo sebagai base64
+        const response = await fetch(logo);
+        const blob = await response.blob();
+        logoBase64 = await new Promise((resolve) => {
+          const reader = new FileReader();
+          reader.onloadend = () => resolve(reader.result);
+          reader.readAsDataURL(blob);
+        });
+      } catch (error) {
+        console.warn("Logo tidak dapat dikonversi, mengirim tanpa logo");
+      }
+
       const res = await laporanService.cetakLaporanPesanan({
         from,
         to,
         status,
         format,
+        logo: logoBase64, // Kirim logo ke backend
+        title: "Laporan Pesanan",
+        companyName: "Menara Nusantara",
+        address: "Jl. Contoh No. 123, Jakarta",
+        phone: "(021) 1234-5678",
       });
 
       if (!res.success) {
@@ -102,6 +124,177 @@ const LaporanAdmin = () => {
     } finally {
       setExporting((prev) => ({ ...prev, [exportKey]: false }));
     }
+  };
+
+  // =====================
+  // PRINT LAPORAN
+  // =====================
+  const printLaporan = () => {
+    if (list.length === 0) {
+      toast.error("Tidak ada data untuk dicetak");
+      return;
+    }
+
+    const printWindow = window.open("", "_blank");
+    printWindow.document.write(`
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Laporan Pesanan</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 20px; }
+                    .header { text-align: center; margin-bottom: 30px; }
+                    .logo { max-height: 80px; }
+                    .company-info { margin: 10px 0; }
+                    .title { font-size: 24px; font-weight: bold; margin: 10px 0; }
+                    .period { color: #666; margin-bottom: 20px; }
+                    .table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+                    .table th { background-color: #f3f4f6; border: 1px solid #d1d5db; padding: 10px; text-align: left; }
+                    .table td { border: 1px solid #d1d5db; padding: 10px; }
+                    .summary { display: flex; justify-content: space-between; margin: 30px 0; flex-wrap: wrap; }
+                    .summary-item { flex: 1; min-width: 200px; margin: 10px; }
+                    .badge { padding: 4px 8px; border-radius: 12px; font-size: 12px; display: inline-block; }
+                    .badge-menunggu { background-color: #fef3c7; color: #92400e; }
+                    .badge-diproses { background-color: #dbeafe; color: #1e40af; }
+                    .badge-selesai { background-color: #d1fae5; color: #065f46; }
+                    .badge-dibatalkan { background-color: #fee2e2; color: #991b1b; }
+                    @media print {
+                        .no-print { display: none; }
+                    }
+                </style>
+            </head>
+            <body>
+                <div class="header">
+                    <div class="company-info">
+                        <img src="${logo}" class="logo" alt="Logo Menara Nusantara">
+                        <h1>MENARA NUSANTARA</h1>
+                        <p>Jl. Contoh No. 123, Jakarta</p>
+                        <p>Telp: (021) 1234-5678</p>
+                    </div>
+                    <div class="title">LAPORAN PESANAN</div>
+                    <div class="period">
+                        Periode: ${new Date(from).toLocaleDateString(
+                          "id-ID"
+                        )} - ${new Date(to).toLocaleDateString("id-ID")}
+                        ${status ? ` | Status: ${getStatusLabel(status)}` : ""}
+                    </div>
+                </div>
+
+                ${
+                  summary
+                    ? `
+                <div class="summary">
+                    <div class="summary-item">
+                        <strong>Total Pesanan:</strong> ${summary.total_pesanan}
+                    </div>
+                    <div class="summary-item">
+                        <strong>Total Transaksi:</strong> ${
+                          summary.total_transaksi
+                        }
+                    </div>
+                    <div class="summary-item">
+                        <strong>Nilai Pesanan:</strong> ${formatCurrency(
+                          summary.total_nilai_pesanan
+                        )}
+                    </div>
+                    <div class="summary-item">
+                        <strong>Pendapatan:</strong> ${formatCurrency(
+                          summary.total_pendapatan
+                        )}
+                    </div>
+                    <div class="summary-item">
+                        <strong>Sisa Tagihan:</strong> ${formatCurrency(
+                          summary.total_sisa_tagihan
+                        )}
+                    </div>
+                </div>
+                `
+                    : ""
+                }
+
+                <table class="table">
+                    <thead>
+                        <tr>
+                            <th>No</th>
+                            <th>Customer</th>
+                            <th>Produk</th>
+                            <th>Qty</th>
+                            <th>Total</th>
+                            <th>Pembayaran</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${list
+                          .map((item, i) => {
+                            const bayar =
+                              item.pembayaran?.jenis === "DP"
+                                ? item.total / 2
+                                : item.pembayaran?.jenis === "FULL"
+                                ? item.pembayaran.jumlah
+                                : 0;
+
+                            const statusClass =
+                              {
+                                MENUNGGU_PEMBAYARAN: "badge-menunggu",
+                                DIPROSES: "badge-diproses",
+                                SELESAI: "badge-selesai",
+                                DIBATALKAN: "badge-dibatalkan",
+                              }[item.status] || "";
+
+                            return `
+                            <tr>
+                                <td>${i + 1}</td>
+                                <td>${item.customer}</td>
+                                <td>${item.produk}</td>
+                                <td>${item.qty}</td>
+                                <td>${formatCurrency(item.total)}</td>
+                                <td>
+                                    ${item.pembayaran?.jenis || "-"}
+                                    <br>
+                                    <small>${formatCurrency(bayar)}</small>
+                                </td>
+                                <td>
+                                    <span class="badge ${statusClass}">
+                                        ${getStatusLabel(item.status)}
+                                    </span>
+                                </td>
+                            </tr>
+                            `;
+                          })
+                          .join("")}
+                    </tbody>
+                </table>
+
+                <div style="margin-top: 40px; padding-top: 20px; border-top: 1px solid #ccc;">
+                    <div style="float: right; text-align: center; width: 200px;">
+                        <div style="margin-top: 50px;">
+                            <div style="border-top: 1px solid #000; width: 150px; margin: 0 auto 10px;"></div>
+                            <strong>Manager</strong><br>
+                            Menara Nusantara
+                        </div>
+                    </div>
+                    
+                    <div style="clear: both;"></div>
+                    <div style="text-align: center; margin-top: 30px; font-size: 12px; color: #666;">
+                        Dicetak pada: ${new Date().toLocaleDateString(
+                          "id-ID"
+                        )} ${new Date().toLocaleTimeString("id-ID")}
+                    </div>
+                </div>
+
+                <div class="no-print" style="margin-top: 30px; text-align: center;">
+                    <button onclick="window.print()" style="padding: 10px 20px; background-color: #4f46e5; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        Cetak Laporan
+                    </button>
+                    <button onclick="window.close()" style="padding: 10px 20px; margin-left: 10px; background-color: #6b7280; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                        Tutup
+                    </button>
+                </div>
+            </body>
+            </html>
+        `);
+    printWindow.document.close();
   };
 
   // =====================
@@ -126,6 +319,19 @@ const LaporanAdmin = () => {
     });
   };
 
+  // =====================
+  // GET STATUS LABEL
+  // =====================
+  const getStatusLabel = (status) => {
+    const labels = {
+      MENUNGGU_PEMBAYARAN: "Menunggu Pembayaran",
+      DIPROSES: "Diproses",
+      SELESAI: "Selesai",
+      DIBATALKAN: "Dibatalkan",
+    };
+    return labels[status] || status;
+  };
+
   return (
     <div className="p-6 space-y-6">
       {/* HEADER */}
@@ -135,9 +341,15 @@ const LaporanAdmin = () => {
             <div className="p-2 bg-blue-50 rounded-xl">
               <BarChart3 className="w-6 h-6 text-blue-600" />
             </div>
-            <h1 className="text-2xl font-bold text-gray-900">
-              Laporan Pesanan
-            </h1>
+            <div>
+              <h1 className="text-2xl font-bold text-gray-900">
+                Laporan Pesanan
+              </h1>
+              <div className="flex items-center gap-2 mt-1">
+                <img src={logo} alt="Logo" className="w-5 h-5" />
+                <p className="text-sm text-gray-500">Menara Nusantara</p>
+              </div>
+            </div>
           </div>
           <p className="text-sm text-gray-500">
             Pantau dan analisis performa penjualan Anda
@@ -275,9 +487,17 @@ const LaporanAdmin = () => {
         </div>
       )}
 
-      {/* EXPORT BUTTONS */}
+      {/* ACTION BUTTONS */}
       {(summary || list.length > 0) && (
-        <div className="flex justify-end gap-3">
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={printLaporan}
+            className="flex items-center gap-2 px-4 py-2.5 bg-gray-50 text-gray-700 hover:bg-gray-100 border border-gray-300 rounded-xl transition-colors font-medium"
+          >
+            <Printer className="w-4 h-4" />
+            Cetak
+          </button>
+
           <button
             onClick={() => exportLaporan("pdf")}
             disabled={exporting.pdf}
@@ -388,10 +608,12 @@ const LaporanAdmin = () => {
           {/* FOOTER */}
           {summary && (
             <div className="px-6 py-4 bg-gray-50 border-t border-gray-200">
-              <div className="flex justify-between items-center">
-                <div className="text-sm text-gray-600">
-                  Menampilkan{" "}
-                  <span className="font-semibold">{list.length}</span> pesanan
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <img src={logo} alt="Logo" className="w-6 h-6 opacity-70" />
+                  <div className="text-sm text-gray-600">
+                    Menara Nusantara • Laporan Pesanan
+                  </div>
                 </div>
                 <div className="text-sm font-medium text-gray-900">
                   Total: {formatCurrency(summary.total_nilai_pesanan)}
