@@ -1,5 +1,5 @@
 // src/components/admin/OrderDetailModal.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import {
   MdInfo,
@@ -7,6 +7,7 @@ import {
   MdDelete,
   MdClose,
   MdHourglassBottom,
+  MdCalendarToday,
 } from "react-icons/md";
 import OrderStatusBadge from "./OrderStatusBadge";
 
@@ -19,55 +20,114 @@ const OrderDetailModal = ({
 }) => {
   const [updating, setUpdating] = useState(false);
   const [deleting, setDeleting] = useState(false);
+  const [dpInfo, setDpInfo] = useState(null);
+  const [statusOptions, setStatusOptions] = useState([]);
+  
   const paymentStatus = orderService.checkPaymentStatus(order);
   const frontendStatus = orderService.mapStatusToFrontend(order.status_pesanan);
   
-  // ========== GET NEXT VALID STATUS (SMART LOGIC) ==========
-  const getSmartNextStatuses = (order) => {
-    const paymentStatus = orderService.checkPaymentStatus(order);
-    const currentStatus = order.status_pesanan;
+  // ========== GET DP INFORMATION ==========
+  useEffect(() => {
+    const calculateDpInfo = () => {
+      const dpAmount = order.dp_wajib || Math.ceil(order.total_harga * 0.5);
+      const pelunasanAmount = order.total_harga - dpAmount;
+      
+      // Hitung DP yang sudah dibayar dari transaksi settlement DP
+      const dpTransactions = order.transaksi?.filter(t => 
+        t.midtrans_status === "settlement" && 
+        (t.jenis_pembayaran === "DP" || t.jenis_pembayaran === "FULL")
+      ) || [];
+      
+      const dpPaid = dpTransactions.reduce((sum, t) => sum + (t.nominal || t.jumlah || 0), 0);
+      
+      // Hitung pelunasan yang sudah dibayar
+      const pelunasanTransactions = order.transaksi?.filter(t => 
+        t.midtrans_status === "settlement" && 
+        t.jenis_pembayaran === "PELUNASAN"
+      ) || [];
+      
+      const pelunasanPaid = pelunasanTransactions.reduce((sum, t) => sum + (t.nominal || t.jumlah || 0), 0);
 
-    // Jika ada pembayaran pending, tidak ada aksi
-    if (paymentStatus.isPending) {
-      return [];
-    }
+      return {
+        dpAmount,
+        dpPaid,
+        pelunasanAmount,
+        pelunasanPaid,
+        isDpValid: order.dp_status === "VALID",
+        isPelunasanValid: order.pelunasan_status === "VALID",
+        dpPercentage: Math.round((dpPaid / dpAmount) * 100) || 0,
+        pelunasanPercentage: Math.round((pelunasanPaid / pelunasanAmount) * 100) || 0,
+      };
+    };
 
-    // Logika status berdasarkan kondisi pembayaran
-    switch (currentStatus) {
-      case "DIBUAT":
-        return ["MENUNGGU_DP", "DIBATALKAN"];
+    setDpInfo(calculateDpInfo());
+  }, [order]);
 
-      case "MENUNGGU_DP":
-        // Jika sudah ada DP (settlement), bisa ke MENUNGGU_PELUNASAN atau DIBATALKAN
-        if (paymentStatus.isPaid && !paymentStatus.isFullyPaid) {
-          return ["MENUNGGU_PELUNASAN", "DIBATALKAN"];
-        }
-        // Jika belum bayar sama sekali
-        return ["DIBATALKAN"];
+  // ========== GET AVAILABLE STATUS OPTIONS ==========
+  useEffect(() => {
+    const getStatusOptions = () => {
+      const currentStatus = order.status_pesanan;
+      const options = [];
 
-      case "MENUNGGU_PELUNASAN":
-        // Jika sudah lunas, bisa langsung DIPROSES
-        if (paymentStatus.isFullyPaid) {
-          return ["DIPROSES", "DIBATALKAN"];
-        }
-        // Jika belum lunas, hanya bisa dibatalkan
-        return ["DIBATALKAN"];
+      // Status yang tersedia berdasarkan status saat ini dan kondisi pembayaran
+      switch (currentStatus) {
+        case "MENUNGGU_PEMBAYARAN":
+          // Bisa ke DIPROSES jika sudah lunas atau FULL payment
+          if (paymentStatus.isFullyPaid) {
+            options.push({
+              status: "DIPROSES",
+              label: "Mulai Produksi",
+              description: "Pesanan sudah lunas, siap untuk diproses",
+              color: "bg-blue-500 hover:bg-blue-600",
+            });
+          }
+          // Bisa ke DIBATALKAN jika belum ada pembayaran settlement
+          if (!paymentStatus.hasSettlementPayment) {
+            options.push({
+              status: "DIBATALKAN",
+              label: "Batalkan Pesanan",
+              description: "Batalkan pesanan ini",
+              color: "bg-red-500 hover:bg-red-600",
+            });
+          }
+          break;
 
-      case "DIPROSES":
-        return ["SELESAI"];
+        case "DIPROSES":
+          options.push({
+            status: "SELESAI",
+            label: "Selesaikan Pesanan",
+            description: "Tandai pesanan sudah selesai diproduksi",
+            color: "bg-green-500 hover:bg-green-600",
+          });
+          break;
 
-      case "SELESAI":
-        return [];
+        case "SELESAI":
+          // Tidak ada aksi selanjutnya
+          break;
 
-      case "DIBATALKAN":
-        return [];
+        case "DIBATALKAN":
+          // Tidak bisa diubah dari DIBATALKAN
+          break;
 
-      default:
-        return [];
-    }
-  };
+        default:
+          break;
+      }
 
-  const nextStatuses = getSmartNextStatuses(order);
+      // Tambahkan aksi manual jika admin ingin override (khusus untuk testing)
+      if (process.env.NODE_ENV === "development") {
+        options.push({
+          status: "MENUNGGU_PEMBAYARAN",
+          label: "Reset ke Menunggu Pembayaran",
+          description: "Hanya untuk testing",
+          color: "bg-yellow-500 hover:bg-yellow-600",
+        });
+      }
+
+      return options;
+    };
+
+    setStatusOptions(getStatusOptions());
+  }, [order.status_pesanan, paymentStatus]);
 
   // ========== LOGIKA HAPUS PESANAN (ADMIN) ==========
   const canDeleteOrder = (order) => {
@@ -82,7 +142,7 @@ const OrderDetailModal = ({
     // Cek status pembayaran
     const transaksi = order.transaksi || [];
     const settledTransactions = transaksi.filter(t => t.midtrans_status === "settlement");
-    const totalPaid = settledTransactions.reduce((sum, t) => sum + t.nominal, 0);
+    const totalPaid = settledTransactions.reduce((sum, t) => sum + (t.nominal || 0), 0);
     
     // ❌ Tidak bisa hapus jika sudah LUNAS
     if (totalPaid >= order.total_harga) {
@@ -115,18 +175,6 @@ const OrderDetailModal = ({
         }
       }
 
-      // Validasi khusus untuk status MENUNGGU_PELUNASAN
-      if (newStatus === "MENUNGGU_PELUNASAN") {
-        if (!paymentStatus.isPaid) {
-          toast.error("❌ DP harus dibayar dulu sebelum menunggu pelunasan!");
-          return;
-        }
-        if (paymentStatus.isFullyPaid) {
-          toast.error("❌ Pesanan sudah lunas! Langsung ubah ke DIPROSES.");
-          return;
-        }
-      }
-
       const confirmMessage = getConfirmationMessage(frontendStatus, newStatus, paymentStatus);
       if (!window.confirm(confirmMessage)) {
         return;
@@ -142,15 +190,12 @@ const OrderDetailModal = ({
 
   const getConfirmationMessage = (current, next, paymentStatus) => {
     const messages = {
-      "DIBUAT→MENUNGGU_DP": "✅ Yakin ingin mengirim permintaan DP 50% ke customer?",
-      "MENUNGGU_DP→MENUNGGU_PELUNASAN": `✅ DP sudah diterima (Rp ${orderService.formatCurrency(paymentStatus.totalPaid)}).\n\nYakin ingin ubah status ke MENUNGGU PELUNASAN?\n\nCustomer harus bayar sisa: Rp ${orderService.formatCurrency(paymentStatus.remaining)}`,
-      "MENUNGGU_PELUNASAN→DIPROSES": `✅ Pembayaran LUNAS (Rp ${orderService.formatCurrency(paymentStatus.totalPaid)}).\n\nYakin ingin MULAI PRODUKSI?`,
-      "DIPROSES→SELESAI": "✅ Yakin pesanan sudah selesai diproduksi?",
-      "→DIBATALKAN": "⚠️ Yakin ingin membatalkan pesanan ini?",
+      "DIPROSES": `✅ Yakin ingin memulai produksi pesanan ini?\n\nEstimasi: ${order.estimasi_hari} hari\nTotal: ${orderService.formatCurrency(order.total_harga)}\nStatus Pembayaran: ${paymentStatus.isFullyPaid ? 'LUNAS' : 'BELUM LUNAS'}`,
+      "SELESAI": "✅ Yakin pesanan sudah selesai diproduksi?",
+      "DIBATALKAN": `⚠️ PERINGATAN!\n\nYakin ingin membatalkan pesanan ini?\n\nPesanan yang dibatalkan tidak dapat dikembalikan.`,
     };
 
-    const key = `${current}→${next}`;
-    return messages[key] || messages[`→${next}`] || `Yakin ingin mengubah status ke ${orderService.getStatusLabel(next)}?`;
+    return messages[next] || `Yakin ingin mengubah status ke ${orderService.getStatusLabel(next)}?`;
   };
 
   const handleDelete = async () => {
@@ -163,12 +208,12 @@ const OrderDetailModal = ({
 
     const transaksi = order.transaksi || [];
     const settledTransactions = transaksi.filter(t => t.midtrans_status === "settlement");
-    const totalPaid = settledTransactions.reduce((sum, t) => sum + t.nominal, 0);
+    const totalPaid = settledTransactions.reduce((sum, t) => sum + (t.nominal || 0), 0);
 
     let confirmMessage = "Yakin ingin menghapus pesanan ini? Tindakan ini tidak dapat dibatalkan.";
     
     if (totalPaid > 0) {
-      confirmMessage = `⚠️ PERINGATAN!\n\nPesanan ini sudah menerima pembayaran DP sebesar Rp ${totalPaid.toLocaleString()}.\n\nJika dihapus, customer mungkin perlu refund manual!\n\nYakin ingin melanjutkan?`;
+      confirmMessage = `⚠️ PERINGATAN!\n\nPesanan ini sudah menerima pembayaran sebesar ${orderService.formatCurrency(totalPaid)}.\n\nJika dihapus, customer mungkin perlu refund manual!\n\nYakin ingin melanjutkan?`;
     }
 
     if (!window.confirm(confirmMessage)) {
@@ -187,37 +232,10 @@ const OrderDetailModal = ({
     }
   };
 
-
-  const getButtonConfig = (status) => {
-    const configs = {
-      MENUNGGU_DP: {
-        label: "Minta DP",
-        color: "bg-yellow-500 hover:bg-yellow-600",
-      },
-      MENUNGGU_PELUNASAN: {
-        label: "Set Menunggu Pelunasan",
-        color: "bg-orange-500 hover:bg-orange-600",
-      },
-      DIPROSES: {
-        label: "Mulai Produksi",
-        color: "bg-blue-500 hover:bg-blue-600",
-      },
-      SELESAI: {
-        label: "Selesaikan",
-        color: "bg-green-500 hover:bg-green-600",
-      },
-      DIBATALKAN: {
-        label: "Batalkan",
-        color: "bg-red-500 hover:bg-red-600",
-      },
-    };
-    return configs[status] || { label: orderService.getStatusLabel(status), color: "bg-gray-500 hover:bg-gray-600" };
-  };
-
-  const InfoRow = ({ label, value }) => (
+  const InfoRow = ({ label, value, className = "" }) => (
     <div className="flex justify-between items-center py-2 border-b border-gray-100 last:border-0">
       <span className="text-sm text-gray-600">{label}</span>
-      <span className="text-sm font-medium text-gray-900 text-right max-w-[200px] break-words">
+      <span className={`text-sm font-medium text-gray-900 text-right max-w-[200px] break-words ${className}`}>
         {value}
       </span>
     </div>
@@ -231,7 +249,10 @@ const OrderDetailModal = ({
         <div className="p-6">
           {/* Header */}
           <div className="flex items-center justify-between mb-6">
-            <h3 className="text-xl font-bold text-gray-900">Detail Pesanan</h3>
+            <div>
+              <h3 className="text-xl font-bold text-gray-900">Detail Pesanan</h3>
+              <p className="text-sm text-gray-500 mt-1">ID: {order.id_pesanan}</p>
+            </div>
             <button
               onClick={onClose}
               className="p-2 hover:bg-gray-100 rounded-lg text-gray-500 hover:text-gray-700"
@@ -249,82 +270,138 @@ const OrderDetailModal = ({
                 Informasi Pesanan
               </h4>
               <div className="space-y-3">
-                <InfoRow label="ID Pesanan" value={order.id_pesanan} />
                 <InfoRow label="Tanggal Pesan" value={orderService.formatDate(order.tanggal_pesan)} />
                 <InfoRow label="Produk" value={order.produk?.nama_produk || "-"} />
                 <InfoRow label="Bahan" value={order.produk?.bahan || "-"} />
                 <InfoRow label="Qty" value={`${order.qty} pcs`} />
                 <InfoRow label="Harga Satuan" value={orderService.formatCurrency(order.harga_satuan)} />
-                <InfoRow label="Catatan" value={order.catatan || "Tidak ada catatan"} />
+                {order.estimasi_hari && (
+                  <InfoRow 
+                    label="Estimasi Produksi" 
+                    value={`${order.estimasi_hari} hari`}
+                    className="text-blue-600"
+                  />
+                )}
+                <div className="pt-2">
+                  <span className="text-sm text-gray-600 block mb-1">Catatan</span>
+                  <div className="p-3 bg-gray-50 rounded-lg text-sm text-gray-700">
+                    {order.catatan || "Tidak ada catatan"}
+                  </div>
+                </div>
               </div>
             </div>
 
-            {/* Payment Info */}
-            <div>
-              <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
-                <MdAttachMoney className="text-green-500" />
-                Informasi Pembayaran
-              </h4>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center p-4 bg-gray-50 rounded-xl">
-                  <div>
-                    <span className="text-gray-600 block text-sm">Total Harga</span>
-                    <span className="text-2xl font-bold text-gray-900">
-                      {orderService.formatCurrency(order.total_harga)}
-                    </span>
-                  </div>
-                  <MdAttachMoney className="text-gray-400 text-2xl" />
-                </div>
-                
-                {paymentStatus.hasPayment && (
-                  <div className="pt-4 border-t border-gray-200 space-y-3">
-                    <div className="flex justify-between items-center p-3 bg-green-50 rounded-lg">
-                      <span className="text-gray-700 font-medium">Total Dibayar</span>
-                      <span className="text-lg font-bold text-green-600">
-                        {orderService.formatCurrency(paymentStatus.totalPaid)}
+            {/* Payment & DP Info */}
+            <div className="space-y-6">
+              {/* Total Price */}
+              <div>
+                <h4 className="font-semibold text-gray-700 mb-3 flex items-center gap-2">
+                  <MdAttachMoney className="text-green-500" />
+                  Ringkasan Pembayaran
+                </h4>
+                <div className="p-4 bg-gray-50 rounded-xl space-y-4">
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <span className="text-gray-600 block text-sm">Total Harga</span>
+                      <span className="text-2xl font-bold text-gray-900">
+                        {orderService.formatCurrency(order.total_harga)}
                       </span>
                     </div>
-                    
-                    {!paymentStatus.isFullyPaid && (
-                      <div className="flex justify-between items-center p-3 bg-orange-50 rounded-lg">
-                        <span className="text-gray-700 font-medium">Sisa Pembayaran</span>
-                        <span className="text-lg font-bold text-orange-600">
-                          {orderService.formatCurrency(paymentStatus.remaining)}
-                        </span>
-                      </div>
-                    )}
+                    <MdAttachMoney className="text-gray-400 text-2xl" />
+                  </div>
 
-                    {/* Detail Transaksi */}
-                    <div className="mt-4">
-                      <h5 className="text-sm font-medium text-gray-600 mb-2">Riwayat Transaksi</h5>
+                  {/* DP Information */}
+                  {dpInfo && (
+                    <div className="space-y-3 pt-3 border-t border-gray-200">
                       <div className="space-y-2">
-                        {order.transaksi?.map((trans, index) => (
-                          <div key={index} className="flex justify-between items-center p-2 bg-gray-50 rounded">
-                            <div>
-                              <span className="text-sm font-medium">{trans.jenis_pembayaran}</span>
-                              <div className="text-xs text-gray-500">
-                                {orderService.formatDate(trans.created_at)}
-                              </div>
-                            </div>
-                            <div className="text-right">
-                              <div className={`text-sm font-medium ${
-                                trans.midtrans_status === 'settlement' ? 'text-green-600' :
-                                trans.midtrans_status === 'pending' ? 'text-yellow-600' :
-                                'text-red-600'
-                              }`}>
-                                {orderService.formatCurrency(trans.nominal)}
-                              </div>
-                              <div className="text-xs text-gray-500 capitalize">
-                                {trans.midtrans_status}
-                              </div>
-                            </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700">DP Wajib (50%)</span>
+                          <span className={`text-sm font-bold ${dpInfo.isDpValid ? 'text-green-600' : 'text-yellow-600'}`}>
+                            {orderService.formatCurrency(dpInfo.dpAmount)}
+                          </span>
+                        </div>
+                        {dpInfo.dpPaid > 0 && (
+                          <div className="text-xs text-gray-600 flex items-center justify-between">
+                            <span>Sudah dibayar:</span>
+                            <span className="font-medium">{orderService.formatCurrency(dpInfo.dpPaid)}</span>
                           </div>
-                        )) || <p className="text-sm text-gray-500">Belum ada transaksi</p>}
+                        )}
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full ${dpInfo.isDpValid ? 'bg-green-500' : 'bg-yellow-500'}`}
+                            style={{ width: `${Math.min(dpInfo.dpPercentage, 100)}%` }}
+                          ></div>
+                        </div>
+                        <div className="text-xs text-gray-500 text-center">
+                          Status: <span className={dpInfo.isDpValid ? 'text-green-600 font-medium' : 'text-yellow-600'}>
+                            {dpInfo.isDpValid ? 'VALID ✓' : 'BELUM'}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Pelunasan Information */}
+                      <div className="space-y-2">
+                        <div className="flex justify-between items-center">
+                          <span className="text-sm font-medium text-gray-700">Pelunasan</span>
+                          <span className={`text-sm font-bold ${dpInfo.isPelunasanValid ? 'text-green-600' : 'text-blue-600'}`}>
+                            {orderService.formatCurrency(dpInfo.pelunasanAmount)}
+                          </span>
+                        </div>
+                        {dpInfo.pelunasanPaid > 0 && (
+                          <div className="text-xs text-gray-600 flex items-center justify-between">
+                            <span>Sudah dibayar:</span>
+                            <span className="font-medium">{orderService.formatCurrency(dpInfo.pelunasanPaid)}</span>
+                          </div>
+                        )}
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div 
+                            className={`h-2 rounded-full ${dpInfo.isPelunasanValid ? 'bg-green-500' : 'bg-blue-500'}`}
+                            style={{ width: `${Math.min(dpInfo.pelunasanPercentage, 100)}%` }}
+                          ></div>
+                        </div>
+                        <div className="text-xs text-gray-500 text-center">
+                          Status: <span className={dpInfo.isPelunasanValid ? 'text-green-600 font-medium' : 'text-blue-600'}>
+                            {dpInfo.isPelunasanValid ? 'VALID ✓' : 'BELUM'}
+                          </span>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
+
+              {/* Payment History */}
+              {paymentStatus.hasPayment && (
+                <div>
+                  <h5 className="text-sm font-medium text-gray-600 mb-2">Riwayat Transaksi</h5>
+                  <div className="space-y-2 max-h-60 overflow-y-auto">
+                    {order.transaksi?.map((trans, index) => (
+                      <div key={index} className="flex justify-between items-center p-3 bg-gray-50 rounded-lg">
+                        <div>
+                          <span className="text-sm font-medium capitalize">
+                            {trans.jenis_pembayaran.toLowerCase()}
+                          </span>
+                          <div className="text-xs text-gray-500">
+                            {orderService.formatDate(trans.created_at)}
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <div className={`text-sm font-medium ${
+                            trans.midtrans_status === 'settlement' ? 'text-green-600' :
+                            trans.midtrans_status === 'pending' ? 'text-yellow-600' :
+                            'text-red-600'
+                          }`}>
+                            {orderService.formatCurrency(trans.nominal || trans.jumlah || 0)}
+                          </div>
+                          <div className="text-xs text-gray-500 capitalize">
+                            {trans.midtrans_status}
+                          </div>
+                        </div>
+                      </div>
+                    )) || <p className="text-sm text-gray-500">Belum ada transaksi</p>}
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -384,10 +461,9 @@ const OrderDetailModal = ({
                 <div 
                   className="bg-gradient-to-r from-indigo-500 to-purple-500 h-2 rounded-full transition-all duration-500"
                   style={{
-                    width: frontendStatus === 'SELESAI' ? '100%' :
-                           frontendStatus === 'DIPROSES' ? '75%' :
-                           frontendStatus === 'MENUNGGU_PELUNASAN' ? '50%' :
-                           frontendStatus === 'MENUNGGU_DP' ? '25%' : '10%'
+                    width: order.status_pesanan === 'SELESAI' ? '100%' :
+                           order.status_pesanan === 'DIPROSES' ? '75%' :
+                           order.status_pesanan === 'MENUNGGU_PEMBAYARAN' ? '50%' : '25%'
                   }}
                 ></div>
               </div>
@@ -415,7 +491,7 @@ const OrderDetailModal = ({
                   {deleting ? "Menghapus..." : "Hapus Pesanan"}
                 </button>
               ) : (
-                <div className="text-xs text-gray-500 bg-gray-100 px-3 py-2 rounded-lg">
+                <div className="text-xs text-gray-500 bg-gray-100 px-3 py-2 rounded-lg max-w-xs">
                   ℹ️ {deleteCheck.reason}
                 </div>
               )}
@@ -430,19 +506,17 @@ const OrderDetailModal = ({
               </button>
               
               {/* Status Action Buttons */}
-              {nextStatuses.map((status) => {
-                const config = getButtonConfig(status);
-                return (
-                  <button
-                    key={status}
-                    onClick={() => handleStatusChange(status)}
-                    disabled={updating || deleting}
-                    className={`px-4 py-2 text-white rounded-xl font-medium transition-colors ${config.color} disabled:opacity-50`}
-                  >
-                    {updating ? "Memproses..." : config.label}
-                  </button>
-                );
-              })}
+              {statusOptions.map((option) => (
+                <button
+                  key={option.status}
+                  onClick={() => handleStatusChange(option.status)}
+                  disabled={updating || deleting}
+                  className={`px-4 py-2 text-white rounded-xl font-medium transition-colors ${option.color} disabled:opacity-50`}
+                  title={option.description}
+                >
+                  {updating ? "Memproses..." : option.label}
+                </button>
+              ))}
             </div>
           </div>
         </div>

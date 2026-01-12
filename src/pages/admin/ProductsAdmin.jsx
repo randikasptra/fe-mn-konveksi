@@ -2,8 +2,8 @@
 import React, { useEffect, useMemo, useState } from 'react'
 import { Search, Plus, FileEdit, Trash2, Package } from 'lucide-react'
 
-import AddProductModal from './AddProductModal'
-import EditProductModal from './EditProductModal'
+import AddProductModal from '../../components/admin/products/AddProductModal'
+import EditProductModal from '../../components/admin/products/EditProductModal'
 
 const API_BASE = 'https://be-mn-konveksi.vercel.app/api'
 
