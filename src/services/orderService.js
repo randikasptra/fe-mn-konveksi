@@ -235,7 +235,7 @@ const OrderService = {
       const backendStatus = this.mapStatusToBackend(status_pesanan);
       
       const response = await fetch(`https://be-mn-konveksi.vercel.app/api/pesanan/${id_pesanan}/status`, {
-        method: "PATCH",
+        method: "PUT",
         headers: {
           Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
