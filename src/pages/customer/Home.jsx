@@ -263,7 +263,6 @@ export default function Home() {
       )}
 
       {/* Footer */}
-      <Footer />
     </div>
   );
 }

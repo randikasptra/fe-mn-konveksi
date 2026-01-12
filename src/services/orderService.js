@@ -2,6 +2,59 @@
 import { orderService as apiOrderService, paymentService } from "./api";
 
 const OrderService = {
+  // ================= HELPER: CHECK PAYMENT STATUS - ✅ FIXED =================
+  checkPaymentStatus(order) {
+    const transaksi = order.transaksi || [];
+
+    const pendingTransactions = transaksi.filter(
+      (t) => t.midtrans_status === "pending"
+    );
+    const settledTransactions = transaksi.filter(
+      (t) => t.midtrans_status === "settlement"
+    );
+
+    // ✅ FIX: Gunakan field 'jumlah' dari backend, bukan 'nominal'
+    const totalPaid = settledTransactions.reduce((sum, t) => {
+      // Backend menggunakan field 'jumlah', bukan 'nominal'
+      const amount = Number(t.jumlah || t.nominal || 0);
+
+      console.log(`✅ Transaction ${t.id_transaksi}:`, {
+        jenis: t.jenis_pembayaran,
+        jumlah: t.jumlah,
+        nominal: t.nominal,
+        detected: amount,
+        status: t.midtrans_status,
+      });
+
+      return sum + amount;
+    }, 0);
+
+    const remaining = Math.max(0, (order.total_harga || 0) - totalPaid);
+    const isFullyPaid = totalPaid >= (order.total_harga || 0);
+
+    console.log("💰 Payment Status Summary:", {
+      orderId: order.id_pesanan,
+      totalHarga: order.total_harga,
+      totalPaid,
+      remaining,
+      isFullyPaid,
+      percentage: ((totalPaid / order.total_harga) * 100).toFixed(1) + "%",
+      settledCount: settledTransactions.length,
+      pendingCount: pendingTransactions.length,
+    });
+
+    return {
+      hasPayment: transaksi.length > 0,
+      isPending: pendingTransactions.length > 0,
+      isPaid: totalPaid > 0,
+      isFullyPaid,
+      totalPaid,
+      remaining,
+      pendingTransactions,
+      settledTransactions,
+    };
+  },
+
   // ================= CUSTOMER: GET MY ORDERS =================
   async getOrders() {
     try {
@@ -99,23 +152,27 @@ const OrderService = {
   async updateOrderStatus(id_pesanan, status_pesanan, token) {
     try {
       const backendStatus = this.mapStatusToBackend(status_pesanan);
-      
-      const response = await fetch(`https://be-mn-konveksi.vercel.app/api/pesanan/${id_pesanan}/status`, {
-        method: "PATCH",
-        headers: {
-          Authorization: `Bearer ${token}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ status_pesanan: backendStatus }),
-      });
 
-      console.log("OrderService.updateOrderStatus response:", response);
+      const response = await fetch(
+        `https://be-mn-konveksi.vercel.app/api/pesanan/${id_pesanan}/status`,
+        {
+          method: "PATCH",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({ status_pesanan: backendStatus }),
+        }
+      );
 
-      if (response && response.success) {
+      const data = await response.json();
+      console.log("OrderService.updateOrderStatus response:", data);
+
+      if (data && data.success) {
         return {
           success: true,
-          message: response.message || "Status pesanan berhasil diperbarui",
-          data: response.data,
+          message: data.message || "Status pesanan berhasil diperbarui",
+          data: data.data,
         };
       }
 
@@ -223,13 +280,33 @@ const OrderService = {
   // ================= CREATE PAYMENT =================
   async createPayment({ id_pesanan, jenis_pembayaran, order }) {
     try {
-      const nominal =
-        jenis_pembayaran === "DP"
-          ? Math.ceil(order.total_harga * 0.5)
-          : order.total_harga -
-            (order.transaksi || [])
-              .filter((t) => t.midtrans_status === "settlement")
-              .reduce((sum, t) => sum + (Number(t.nominal) || 0), 0);
+      // ✅ Hitung nominal berdasarkan jenis pembayaran
+      let nominal;
+
+      if (jenis_pembayaran === "DP") {
+        // DP = 50% dari total
+        nominal = order.dp_wajib || Math.ceil(order.total_harga * 0.5);
+      } else if (jenis_pembayaran === "FULL") {
+        // FULL = total harga
+        nominal = order.total_harga;
+      } else if (jenis_pembayaran === "PELUNASAN") {
+        // PELUNASAN = total - DP yang sudah dibayar
+        const settledTransactions = (order.transaksi || []).filter(
+          (t) => t.midtrans_status === "settlement"
+        );
+
+        const totalPaid = settledTransactions.reduce((sum, t) => {
+          return sum + Number(t.jumlah || t.nominal || 0);
+        }, 0);
+
+        nominal = order.total_harga - totalPaid;
+
+        console.log("💰 Pelunasan calculation:", {
+          totalHarga: order.total_harga,
+          totalPaid,
+          pelunasan: nominal,
+        });
+      }
 
       const response = await paymentService.createPayment({
         id_pesanan,
@@ -262,78 +339,34 @@ const OrderService = {
     }
   },
 
-  // ================= HELPER: CHECK PAYMENT STATUS - ✅ FIXED =================
-  checkPaymentStatus(order) {
-    const transaksi = order.transaksi || [];
-
-    const pendingTransactions = transaksi.filter(
-      (t) => t.midtrans_status === "pending"
-    );
-    const settledTransactions = transaksi.filter(
-      (t) => t.midtrans_status === "settlement"
-    );
-
-    // ✅ FIX: Handle berbagai field name untuk nominal (nominal, jumlah, amount, total)
-    const totalPaid = settledTransactions.reduce((sum, t) => {
-      // Try different possible field names
-      const nominalValue = t.nominal || t.jumlah || t.amount || t.total || 0;
-      const nominal = Number(nominalValue) || 0;
-      
-      console.log(`Transaction ${t.id_transaksi}:`, {
-        raw: t,
-        nominalField: t.nominal,
-        jumlahField: t.jumlah,
-        amountField: t.amount,
-        detected: nominalValue,
-        parsed: nominal
-      });
-      
-      return sum + nominal;
-    }, 0);
-
-    const remaining = Math.max(0, (order.total_harga || 0) - totalPaid);
-
-    console.log("Payment Status Check:", {
-      orderId: order.id_pesanan,
-      totalHarga: order.total_harga,
-      totalPaid,
-      remaining,
-      isFullyPaid: totalPaid >= order.total_harga,
-      settledCount: settledTransactions.length,
-      transactions: transaksi.map(t => ({
-        id: t.id_transaksi,
-        nominal: t.nominal,
-        jumlah: t.jumlah,
-        amount: t.amount,
-        status: t.midtrans_status
-      }))
-    });
-
-    return {
-      hasPayment: transaksi.length > 0,
-      isPending: pendingTransactions.length > 0,
-      isPaid: totalPaid > 0,
-      isFullyPaid: totalPaid >= (order.total_harga || 0),
-      totalPaid,
-      remaining,
-      pendingTransactions,
-      settledTransactions,
-    };
-  },
-
   // ================= HELPER: MAP STATUS TO FRONTEND =================
   mapStatusToFrontend(backendStatus) {
     const statusMap = {
-      DIBUAT: "DIBUAT",
+      MENUNGGU_PEMBAYARAN: "MENUNGGU_DP", // INI YANG SALAH!
       MENUNGGU_DP: "MENUNGGU_DP",
       MENUNGGU_PELUNASAN: "MENUNGGU_PELUNASAN",
       DIPROSES: "DIPROSES",
       SELESAI: "SELESAI",
       DIBATALKAN: "DIBATALKAN",
-      MENUNGGU_PEMBAYARAN: "MENUNGGU_DP",
+      DIBUAT: "DIBUAT",
     };
 
     return statusMap[backendStatus] || backendStatus;
+  },
+
+  // ================= HELPER: MAP STATUS TO BACKEND =================
+  mapStatusToBackend(frontendStatus) {
+    // KONVERSI KE FORMAT BACKEND
+    const statusMap = {
+      DIBUAT: "DIBUAT",
+      MENUNGGU_DP: "MENUNGGU_PEMBAYARAN", // Ini yang benar!
+      MENUNGGU_PELUNASAN: "MENUNGGU_PELUNASAN",
+      DIPROSES: "DIPROSES",
+      SELESAI: "SELESAI",
+      DIBATALKAN: "DIBATALKAN",
+    };
+
+    return statusMap[frontendStatus] || frontendStatus;
   },
 
   // ================= HELPER: GET STATUS LABEL =================
@@ -483,8 +516,6 @@ const OrderService = {
     // Filter by status
     if (filter !== "all") {
       filtered = filtered.filter((order) => {
-        const paymentStatus = this.checkPaymentStatus(order);
-
         switch (filter) {
           case "pending":
             return order.status_pesanan === "DIBUAT";
