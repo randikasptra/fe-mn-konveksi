@@ -4,7 +4,6 @@ import { toast } from "react-toastify";
 import {
   MdInfo,
   MdAttachMoney,
-  MdCalendarToday,
   MdDelete,
   MdClose,
   MdHourglassBottom,
@@ -19,21 +18,116 @@ const OrderDetailModal = ({
   onDelete 
 }) => {
   const [updating, setUpdating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
   const paymentStatus = orderService.checkPaymentStatus(order);
   const frontendStatus = orderService.mapStatusToFrontend(order.status_pesanan);
-  const nextStatuses = orderService.getNextValidStatus(order);
+  
+  // ========== GET NEXT VALID STATUS (SMART LOGIC) ==========
+  const getSmartNextStatuses = (order) => {
+    const paymentStatus = orderService.checkPaymentStatus(order);
+    const currentStatus = order.status_pesanan;
+
+    // Jika ada pembayaran pending, tidak ada aksi
+    if (paymentStatus.isPending) {
+      return [];
+    }
+
+    // Logika status berdasarkan kondisi pembayaran
+    switch (currentStatus) {
+      case "DIBUAT":
+        return ["MENUNGGU_DP", "DIBATALKAN"];
+
+      case "MENUNGGU_DP":
+        // Jika sudah ada DP (settlement), bisa ke MENUNGGU_PELUNASAN atau DIBATALKAN
+        if (paymentStatus.isPaid && !paymentStatus.isFullyPaid) {
+          return ["MENUNGGU_PELUNASAN", "DIBATALKAN"];
+        }
+        // Jika belum bayar sama sekali
+        return ["DIBATALKAN"];
+
+      case "MENUNGGU_PELUNASAN":
+        // Jika sudah lunas, bisa langsung DIPROSES
+        if (paymentStatus.isFullyPaid) {
+          return ["DIPROSES", "DIBATALKAN"];
+        }
+        // Jika belum lunas, hanya bisa dibatalkan
+        return ["DIBATALKAN"];
+
+      case "DIPROSES":
+        return ["SELESAI"];
+
+      case "SELESAI":
+        return [];
+
+      case "DIBATALKAN":
+        return [];
+
+      default:
+        return [];
+    }
+  };
+
+  const nextStatuses = getSmartNextStatuses(order);
+
+  // ========== LOGIKA HAPUS PESANAN (ADMIN) ==========
+  const canDeleteOrder = (order) => {
+    // ❌ Tidak bisa hapus jika sudah DIPROSES atau SELESAI
+    if (["DIPROSES", "SELESAI"].includes(order.status_pesanan)) {
+      return { 
+        allowed: false, 
+        reason: "Pesanan yang sudah diproses atau selesai tidak dapat dihapus" 
+      };
+    }
+
+    // Cek status pembayaran
+    const transaksi = order.transaksi || [];
+    const settledTransactions = transaksi.filter(t => t.midtrans_status === "settlement");
+    const totalPaid = settledTransactions.reduce((sum, t) => sum + t.nominal, 0);
+    
+    // ❌ Tidak bisa hapus jika sudah LUNAS
+    if (totalPaid >= order.total_harga) {
+      return { 
+        allowed: false, 
+        reason: "Pesanan yang sudah lunas tidak dapat dihapus" 
+      };
+    }
+
+    // ✅ Bisa dihapus jika:
+    // 1. Belum ada pembayaran sama sekali
+    // 2. Sudah DP tapi belum lunas
+    return { 
+      allowed: true, 
+      reason: totalPaid > 0 
+        ? "Pesanan ini bisa dihapus (DP sudah dibayar, belum lunas)" 
+        : "Pesanan ini bisa dihapus (belum ada pembayaran)"
+    };
+  };
 
   const handleStatusChange = async (newStatus) => {
     try {
       setUpdating(true);
-      const validation = orderService.canUpdateStatus(order, newStatus);
       
-      if (!validation.valid) {
-        toast.error(validation.message || "Validasi gagal");
-        return;
+      // Validasi khusus untuk status DIPROSES
+      if (newStatus === "DIPROSES") {
+        if (!paymentStatus.isFullyPaid) {
+          toast.error("❌ Pesanan harus LUNAS (100%) sebelum bisa diproses!");
+          return;
+        }
       }
 
-      const confirmMessage = getConfirmationMessage(frontendStatus, newStatus);
+      // Validasi khusus untuk status MENUNGGU_PELUNASAN
+      if (newStatus === "MENUNGGU_PELUNASAN") {
+        if (!paymentStatus.isPaid) {
+          toast.error("❌ DP harus dibayar dulu sebelum menunggu pelunasan!");
+          return;
+        }
+        if (paymentStatus.isFullyPaid) {
+          toast.error("❌ Pesanan sudah lunas! Langsung ubah ke DIPROSES.");
+          return;
+        }
+      }
+
+      const confirmMessage = getConfirmationMessage(frontendStatus, newStatus, paymentStatus);
       if (!window.confirm(confirmMessage)) {
         return;
       }
@@ -46,14 +140,13 @@ const OrderDetailModal = ({
     }
   };
 
-  const getConfirmationMessage = (current, next) => {
+  const getConfirmationMessage = (current, next, paymentStatus) => {
     const messages = {
-      "DIBUAT→MENUNGGU_DP": "Yakin ingin mengirim permintaan DP ke customer?",
-      "MENUNGGU_DP→DIPROSES": "Yakin ingin mulai produksi?",
-      "MENUNGGU_DP→MENUNGGU_PELUNASAN": "Yakin DP sudah dibayar dan menunggu pelunasan?",
-      "MENUNGGU_PELUNASAN→DIPROSES": "Yakin ingin mulai produksi?",
-      "DIPROSES→SELESAI": "Yakin pesanan sudah selesai diproduksi?",
-      "→DIBATALKAN": "Yakin ingin membatalkan pesanan ini?",
+      "DIBUAT→MENUNGGU_DP": "✅ Yakin ingin mengirim permintaan DP 50% ke customer?",
+      "MENUNGGU_DP→MENUNGGU_PELUNASAN": `✅ DP sudah diterima (Rp ${orderService.formatCurrency(paymentStatus.totalPaid)}).\n\nYakin ingin ubah status ke MENUNGGU PELUNASAN?\n\nCustomer harus bayar sisa: Rp ${orderService.formatCurrency(paymentStatus.remaining)}`,
+      "MENUNGGU_PELUNASAN→DIPROSES": `✅ Pembayaran LUNAS (Rp ${orderService.formatCurrency(paymentStatus.totalPaid)}).\n\nYakin ingin MULAI PRODUKSI?`,
+      "DIPROSES→SELESAI": "✅ Yakin pesanan sudah selesai diproduksi?",
+      "→DIBATALKAN": "⚠️ Yakin ingin membatalkan pesanan ini?",
     };
 
     const key = `${current}→${next}`;
@@ -61,14 +154,36 @@ const OrderDetailModal = ({
   };
 
   const handleDelete = async () => {
-    if (!window.confirm("Yakin ingin menghapus pesanan ini? Tindakan ini tidak dapat dibatalkan.")) {
+    const deleteCheck = canDeleteOrder(order);
+    
+    if (!deleteCheck.allowed) {
+      toast.error(deleteCheck.reason);
+      return;
+    }
+
+    const transaksi = order.transaksi || [];
+    const settledTransactions = transaksi.filter(t => t.midtrans_status === "settlement");
+    const totalPaid = settledTransactions.reduce((sum, t) => sum + t.nominal, 0);
+
+    let confirmMessage = "Yakin ingin menghapus pesanan ini? Tindakan ini tidak dapat dibatalkan.";
+    
+    if (totalPaid > 0) {
+      confirmMessage = `⚠️ PERINGATAN!\n\nPesanan ini sudah menerima pembayaran DP sebesar Rp ${totalPaid.toLocaleString()}.\n\nJika dihapus, customer mungkin perlu refund manual!\n\nYakin ingin melanjutkan?`;
+    }
+
+    if (!window.confirm(confirmMessage)) {
       return;
     }
 
     try {
+      setDeleting(true);
       await onDelete(order.id_pesanan);
+      toast.success("Pesanan berhasil dihapus");
+      onClose();
     } catch (error) {
       toast.error(error.message || "Gagal menghapus pesanan");
+    } finally {
+      setDeleting(false);
     }
   };
 
@@ -80,7 +195,7 @@ const OrderDetailModal = ({
         color: "bg-yellow-500 hover:bg-yellow-600",
       },
       MENUNGGU_PELUNASAN: {
-        label: "Menunggu Pelunasan",
+        label: "Set Menunggu Pelunasan",
         color: "bg-orange-500 hover:bg-orange-600",
       },
       DIPROSES: {
@@ -107,6 +222,8 @@ const OrderDetailModal = ({
       </span>
     </div>
   );
+
+  const deleteCheck = canDeleteOrder(order);
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
@@ -224,6 +341,22 @@ const OrderDetailModal = ({
             </div>
           )}
 
+          {/* Payment Status Warning */}
+          {!paymentStatus.isFullyPaid && paymentStatus.isPaid && (
+            <div className="mb-6 p-4 bg-orange-50 border border-orange-200 rounded-xl">
+              <div className="flex items-start gap-3">
+                <MdHourglassBottom className="text-orange-600 text-xl flex-shrink-0 mt-0.5" />
+                <div>
+                  <h4 className="font-semibold text-orange-900 mb-1">Menunggu Pelunasan</h4>
+                  <p className="text-sm text-orange-700">
+                    DP sudah dibayar: <strong>{orderService.formatCurrency(paymentStatus.totalPaid)}</strong><br />
+                    Sisa yang harus dibayar: <strong>{orderService.formatCurrency(paymentStatus.remaining)}</strong>
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Status Section */}
           <div className="mb-6 p-4 bg-gray-50 rounded-xl">
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
@@ -271,16 +404,20 @@ const OrderDetailModal = ({
                 </div>
               )}
               
-              {/* Delete Button */}
-              {['DIBUAT', 'MENUNGGU_DP', 'MENUNGGU_PELUNASAN'].includes(frontendStatus) && (
+              {/* Delete Button dengan Validasi */}
+              {deleteCheck.allowed ? (
                 <button
                   onClick={handleDelete}
-                  disabled={updating}
-                  className="flex items-center gap-2 text-red-600 hover:text-red-700 text-sm disabled:opacity-50"
+                  disabled={updating || deleting}
+                  className="flex items-center gap-2 text-red-600 hover:text-red-700 text-sm disabled:opacity-50 hover:bg-red-50 px-3 py-1.5 rounded-lg transition-colors"
                 >
                   <MdDelete size={16} />
-                  Hapus Pesanan
+                  {deleting ? "Menghapus..." : "Hapus Pesanan"}
                 </button>
+              ) : (
+                <div className="text-xs text-gray-500 bg-gray-100 px-3 py-2 rounded-lg">
+                  ℹ️ {deleteCheck.reason}
+                </div>
               )}
             </div>
             
@@ -299,7 +436,7 @@ const OrderDetailModal = ({
                   <button
                     key={status}
                     onClick={() => handleStatusChange(status)}
-                    disabled={updating}
+                    disabled={updating || deleting}
                     className={`px-4 py-2 text-white rounded-xl font-medium transition-colors ${config.color} disabled:opacity-50`}
                   >
                     {updating ? "Memproses..." : config.label}

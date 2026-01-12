@@ -1,4 +1,3 @@
-// src/pages/customer/ProfilePage.jsx
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icon } from "@iconify/react";
@@ -20,17 +19,17 @@ export default function ProfilePage() {
     try {
       setLoading(true);
       const result = await userService.getProfile();
-      
+
       if (!result.success) {
         throw new Error(result.message);
       }
-      
+
       setUser(result.data);
     } catch (error) {
       console.error("Error loading profile:", error);
       toast.error(error.message || "Gagal memuat profil");
-      
-      if (error.message.includes("login")) {
+
+      if (error.message.includes("login") || error.message.includes("token")) {
         navigate("/login");
       }
     } finally {
@@ -61,8 +60,13 @@ export default function ProfilePage() {
     return (
       <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white flex items-center justify-center">
         <div className="text-center">
-          <Icon icon="mdi:account-alert" className="text-gray-400 text-6xl mx-auto mb-4" />
-          <h3 className="text-xl font-semibold text-gray-700 mb-2">Data Tidak Ditemukan</h3>
+          <Icon
+            icon="mdi:account-alert"
+            className="text-gray-400 text-6xl mx-auto mb-4"
+          />
+          <h3 className="text-xl font-semibold text-gray-700 mb-2">
+            Data Tidak Ditemukan
+          </h3>
           <button
             onClick={() => navigate("/login")}
             className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl"
@@ -88,7 +92,9 @@ export default function ProfilePage() {
             </button>
             <h1 className="text-3xl font-bold text-gray-900">Profil Saya</h1>
           </div>
-          <p className="text-gray-600 ml-14">Kelola informasi profil dan keamanan akun Anda</p>
+          <p className="text-gray-600 ml-14">
+            Kelola informasi profil dan keamanan akun Anda
+          </p>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -109,7 +115,9 @@ export default function ProfilePage() {
                 </div>
 
                 {/* User Info */}
-                <h2 className="text-2xl font-bold text-gray-900 mb-2">{user.nama}</h2>
+                <h2 className="text-2xl font-bold text-gray-900 mb-2">
+                  {user.nama}
+                </h2>
                 <div className="inline-flex items-center gap-2 px-4 py-2 bg-gradient-to-r from-indigo-100 to-purple-100 text-indigo-700 rounded-xl mb-4">
                   <Icon icon="mdi:account-circle" />
                   <span className="font-medium text-sm">{user.role}</span>
@@ -118,12 +126,18 @@ export default function ProfilePage() {
                 {/* Quick Stats */}
                 <div className="grid grid-cols-2 gap-4 mt-6 pt-6 border-t border-gray-200">
                   <div className="text-center">
-                    <Icon icon="mdi:package-variant" className="text-3xl text-indigo-500 mx-auto mb-2" />
+                    <Icon
+                      icon="mdi:package-variant"
+                      className="text-3xl text-indigo-500 mx-auto mb-2"
+                    />
                     <p className="text-2xl font-bold text-gray-900">-</p>
                     <p className="text-xs text-gray-500">Total Pesanan</p>
                   </div>
                   <div className="text-center">
-                    <Icon icon="mdi:clock-outline" className="text-3xl text-amber-500 mx-auto mb-2" />
+                    <Icon
+                      icon="mdi:clock-outline"
+                      className="text-3xl text-amber-500 mx-auto mb-2"
+                    />
                     <p className="text-2xl font-bold text-gray-900">-</p>
                     <p className="text-xs text-gray-500">Dalam Proses</p>
                   </div>
@@ -138,7 +152,7 @@ export default function ProfilePage() {
                     <Icon icon="mdi:package-variant" />
                     Lihat Pesanan Saya
                   </button>
-                  
+
                   <button
                     onClick={handleLogout}
                     className="w-full px-4 py-3 bg-white border-2 border-red-200 text-red-600 font-medium rounded-xl hover:bg-red-50 transition-all flex items-center justify-center gap-2"
@@ -158,11 +172,18 @@ export default function ProfilePage() {
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-gradient-to-r from-indigo-100 to-purple-100 rounded-xl flex items-center justify-center">
-                    <Icon icon="mdi:account-details" className="text-indigo-600 text-2xl" />
+                    <Icon
+                      icon="mdi:account-details"
+                      className="text-indigo-600 text-2xl"
+                    />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900">Informasi Pribadi</h3>
-                    <p className="text-sm text-gray-500">Data diri Anda yang terdaftar</p>
+                    <h3 className="text-xl font-bold text-gray-900">
+                      Informasi Pribadi
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      Data diri Anda yang terdaftar
+                    </p>
                   </div>
                 </div>
                 <button
@@ -175,26 +196,22 @@ export default function ProfilePage() {
               </div>
 
               <div className="space-y-4">
-                <InfoRow 
-                  icon="mdi:account" 
-                  label="Nama Lengkap" 
-                  value={user.nama} 
+                <InfoRow
+                  icon="mdi:account"
+                  label="Nama Lengkap"
+                  value={user.nama}
                 />
-                <InfoRow 
-                  icon="mdi:email" 
-                  label="Email" 
-                  value={user.email} 
+                <InfoRow icon="mdi:email" label="Email" value={user.email} />
+                <InfoRow
+                  icon="mdi:phone"
+                  label="No. WhatsApp"
+                  value={userService.formatPhone(user.no_hp)}
                 />
-                <InfoRow 
-                  icon="mdi:phone" 
-                  label="No. WhatsApp" 
-                  value={userService.formatPhone(user.no_hp)} 
-                />
-                <InfoRow 
-                  icon="mdi:map-marker" 
-                  label="Alamat" 
-                  value={user.alamat || "-"} 
-                  multiline 
+                <InfoRow
+                  icon="mdi:map-marker"
+                  label="Alamat"
+                  value={user.alamat || "-"}
+                  multiline
                 />
               </div>
             </div>
@@ -204,11 +221,18 @@ export default function ProfilePage() {
               <div className="flex items-center justify-between mb-6">
                 <div className="flex items-center gap-3">
                   <div className="w-12 h-12 bg-gradient-to-r from-emerald-100 to-teal-100 rounded-xl flex items-center justify-center">
-                    <Icon icon="mdi:shield-lock" className="text-emerald-600 text-2xl" />
+                    <Icon
+                      icon="mdi:shield-lock"
+                      className="text-emerald-600 text-2xl"
+                    />
                   </div>
                   <div>
-                    <h3 className="text-xl font-bold text-gray-900">Keamanan Akun</h3>
-                    <p className="text-sm text-gray-500">Kelola password dan keamanan</p>
+                    <h3 className="text-xl font-bold text-gray-900">
+                      Keamanan Akun
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      Kelola password dan keamanan
+                    </p>
                   </div>
                 </div>
               </div>
@@ -232,10 +256,17 @@ export default function ProfilePage() {
 
                 <div className="flex items-center justify-between p-4 bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl border border-emerald-200">
                   <div className="flex items-center gap-3">
-                    <Icon icon="mdi:check-circle" className="text-emerald-600 text-2xl" />
+                    <Icon
+                      icon="mdi:check-circle"
+                      className="text-emerald-600 text-2xl"
+                    />
                     <div>
-                      <p className="font-medium text-emerald-900">Email Terverifikasi</p>
-                      <p className="text-sm text-emerald-600">Akun Anda sudah aman</p>
+                      <p className="font-medium text-emerald-900">
+                        Email Terverifikasi
+                      </p>
+                      <p className="text-sm text-emerald-600">
+                        Akun Anda sudah aman
+                      </p>
                     </div>
                   </div>
                 </div>
@@ -244,13 +275,15 @@ export default function ProfilePage() {
 
             {/* Quick Links */}
             <div className="bg-white rounded-2xl shadow-lg border border-gray-200 p-8">
-              <h3 className="text-xl font-bold text-gray-900 mb-6">Akses Cepat</h3>
+              <h3 className="text-xl font-bold text-gray-900 mb-6">
+                Akses Cepat
+              </h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <QuickLinkCard
                   icon="mdi:package-variant"
                   title="Pesanan Saya"
                   description="Lihat riwayat pesanan"
-                  onClick={() => navigate("/pesanan")}
+                  onClick={() => navigate("/pesanan-saya")}
                   color="indigo"
                 />
                 <QuickLinkCard
@@ -264,7 +297,9 @@ export default function ProfilePage() {
                   icon="mdi:whatsapp"
                   title="Hubungi Kami"
                   description="Chat via WhatsApp"
-                  onClick={() => window.open("https://wa.me/6281234567890", "_blank")}
+                  onClick={() =>
+                    window.open("https://wa.me/6281234567890", "_blank")
+                  }
                   color="emerald"
                 />
                 <QuickLinkCard
@@ -309,12 +344,20 @@ export default function ProfilePage() {
 
 function InfoRow({ icon, label, value, multiline }) {
   return (
-    <div className={`flex ${multiline ? 'items-start' : 'items-center'} justify-between py-4 border-b border-gray-100 last:border-0`}>
+    <div
+      className={`flex ${
+        multiline ? "items-start" : "items-center"
+      } justify-between py-4 border-b border-gray-100 last:border-0`}
+    >
       <div className="flex items-center gap-3">
         <Icon icon={icon} className="text-gray-400 text-xl" />
         <span className="text-gray-600 font-medium">{label}</span>
       </div>
-      <span className={`text-gray-900 font-semibold ${multiline ? 'max-w-xs text-right' : ''}`}>
+      <span
+        className={`text-gray-900 font-semibold ${
+          multiline ? "max-w-xs text-right" : ""
+        }`}
+      >
         {value}
       </span>
     </div>
@@ -323,17 +366,21 @@ function InfoRow({ icon, label, value, multiline }) {
 
 function QuickLinkCard({ icon, title, description, onClick, color }) {
   const colorClasses = {
-    indigo: "from-indigo-50 to-indigo-100 hover:from-indigo-100 hover:to-indigo-200 border-indigo-200",
-    purple: "from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 border-purple-200",
-    emerald: "from-emerald-50 to-emerald-100 hover:from-emerald-100 hover:to-emerald-200 border-emerald-200",
-    amber: "from-amber-50 to-amber-100 hover:from-amber-100 hover:to-amber-200 border-amber-200"
+    indigo:
+      "from-indigo-50 to-indigo-100 hover:from-indigo-100 hover:to-indigo-200 border-indigo-200",
+    purple:
+      "from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 border-purple-200",
+    emerald:
+      "from-emerald-50 to-emerald-100 hover:from-emerald-100 hover:to-emerald-200 border-emerald-200",
+    amber:
+      "from-amber-50 to-amber-100 hover:from-amber-100 hover:to-amber-200 border-amber-200",
   };
 
   const iconColors = {
     indigo: "text-indigo-600",
     purple: "text-purple-600",
     emerald: "text-emerald-600",
-    amber: "text-amber-600"
+    amber: "text-amber-600",
   };
 
   return (
@@ -341,28 +388,46 @@ function QuickLinkCard({ icon, title, description, onClick, color }) {
       onClick={onClick}
       className={`p-4 bg-gradient-to-r ${colorClasses[color]} rounded-xl border transition-all text-left group`}
     >
-      <Icon icon={icon} className={`${iconColors[color]} text-3xl mb-3 group-hover:scale-110 transition-transform`} />
+      <Icon
+        icon={icon}
+        className={`${iconColors[color]} text-3xl mb-3 group-hover:scale-110 transition-transform`}
+      />
       <h4 className="font-bold text-gray-900 mb-1">{title}</h4>
       <p className="text-sm text-gray-600">{description}</p>
     </button>
   );
 }
 
-/* ================= MODAL COMPONENTS ================= */
+/* ================= EDIT PROFILE MODAL ================= */
 
 function EditProfileModal({ user, onClose, onSuccess }) {
   const [form, setForm] = useState({
     nama: user.nama || "",
-    no_hp: user.no_hp || "",
+    no_hp: user.no_hp ? userService.formatPhoneForInput(user.no_hp) : "",
     alamat: user.alamat || ""
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [errors, setErrors] = useState({});
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     
+    // Validation
+    const newErrors = {};
     if (!form.nama.trim()) {
-      toast.error("Nama wajib diisi");
+      newErrors.nama = "Nama wajib diisi";
+    }
+    
+    // Phone validation (optional)
+    if (form.no_hp && form.no_hp.trim() !== "") {
+      const cleanedPhone = form.no_hp.replace(/[^0-9]/g, "");
+      if (cleanedPhone.length < 10 || cleanedPhone.length > 15) {
+        newErrors.no_hp = "Nomor HP harus 10-15 digit";
+      }
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       return;
     }
 
@@ -374,13 +439,22 @@ function EditProfileModal({ user, onClose, onSuccess }) {
         throw new Error(result.message);
       }
 
-      toast.success(result.message);
+      toast.success(result.message || "Profil berhasil diperbarui");
       onSuccess();
     } catch (error) {
+      console.error("Update error:", error);
       toast.error(error.message || "Gagal memperbarui profil");
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handlePhoneChange = (e) => {
+    const value = e.target.value;
+    // Allow only numbers
+    const formatted = value.replace(/[^0-9]/g, '');
+    setForm({ ...form, no_hp: formatted });
+    if (errors.no_hp) setErrors({ ...errors, no_hp: null });
   };
 
   return (
@@ -401,7 +475,7 @@ function EditProfileModal({ user, onClose, onSuccess }) {
           </div>
         </div>
 
-        <div className="p-8 space-y-6">
+        <form onSubmit={handleSubmit} className="p-8 space-y-6">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
               Nama Lengkap *
@@ -409,28 +483,50 @@ function EditProfileModal({ user, onClose, onSuccess }) {
             <input
               type="text"
               value={form.nama}
-              onChange={(e) => setForm({ ...form, nama: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
+              onChange={(e) => {
+                setForm({ ...form, nama: e.target.value });
+                if (errors.nama) setErrors({ ...errors, nama: null });
+              }}
+              className={`w-full px-4 py-3 border rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors ${
+                errors.nama ? 'border-red-300' : 'border-gray-300'
+              }`}
               placeholder="Masukkan nama lengkap"
             />
+            {errors.nama && (
+              <p className="mt-1 text-sm text-red-600">{errors.nama}</p>
+            )}
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              No. WhatsApp
+              No. WhatsApp (opsional)
             </label>
-            <input
-              type="text"
-              value={form.no_hp}
-              onChange={(e) => setForm({ ...form, no_hp: e.target.value })}
-              className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none"
-              placeholder="081234567890"
-            />
+            <div className="flex items-center">
+              <div className="px-3 py-3 bg-gray-100 border border-r-0 border-gray-300 rounded-l-xl">
+                +62
+              </div>
+              <input
+                type="text"
+                value={form.no_hp}
+                onChange={handlePhoneChange}
+                className={`flex-1 px-4 py-3 border border-gray-300 rounded-r-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-colors ${
+                  errors.no_hp ? 'border-red-300' : ''
+                }`}
+                placeholder="81234567890"
+              />
+            </div>
+            {errors.no_hp ? (
+              <p className="mt-1 text-sm text-red-600">{errors.no_hp}</p>
+            ) : (
+              <p className="mt-1 text-sm text-gray-500">
+                Contoh: 81234567890 (tanpa 0 di depan)
+              </p>
+            )}
           </div>
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Alamat
+              Alamat (opsional)
             </label>
             <textarea
               value={form.alamat}
@@ -439,34 +535,47 @@ function EditProfileModal({ user, onClose, onSuccess }) {
               placeholder="Masukkan alamat lengkap"
               rows={4}
             />
+            <p className="mt-1 text-sm text-gray-500">
+              Alamat akan digunakan untuk pengiriman pesanan
+            </p>
           </div>
 
           <div className="flex gap-4 pt-6">
             <button
+              type="button"
               onClick={onClose}
               className="flex-1 px-6 py-3 border border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors"
             >
               Batal
             </button>
             <button
-              onClick={handleSubmit}
+              type="submit"
               disabled={isSubmitting}
-              className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium rounded-xl hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-medium rounded-xl hover:from-indigo-700 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
             >
-              {isSubmitting ? "Menyimpan..." : "Simpan Perubahan"}
+              {isSubmitting ? (
+                <>
+                  <Icon icon="mdi:loading" className="animate-spin" />
+                  Memproses...
+                </>
+              ) : (
+                "Simpan Perubahan"
+              )}
             </button>
           </div>
-        </div>
+        </form>
       </div>
     </div>
   );
 }
 
+/* ================= CHANGE PASSWORD MODAL ================= */
+
 function ChangePasswordModal({ onClose, onSuccess }) {
   const [form, setForm] = useState({
     old_password: "",
     new_password: "",
-    confirm_password: ""
+    confirm_password: "",
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -504,7 +613,9 @@ function ChangePasswordModal({ onClose, onSuccess }) {
           <div className="flex justify-between items-center">
             <div>
               <h2 className="text-2xl font-bold mb-2">Ubah Password</h2>
-              <p className="text-emerald-100">Perbarui password untuk keamanan akun</p>
+              <p className="text-emerald-100">
+                Perbarui password untuk keamanan akun
+              </p>
             </div>
             <button
               onClick={onClose}
@@ -523,7 +634,9 @@ function ChangePasswordModal({ onClose, onSuccess }) {
             <input
               type="password"
               value={form.old_password}
-              onChange={(e) => setForm({ ...form, old_password: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, old_password: e.target.value })
+              }
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
               placeholder="Masukkan password lama"
             />
@@ -536,7 +649,9 @@ function ChangePasswordModal({ onClose, onSuccess }) {
             <input
               type="password"
               value={form.new_password}
-              onChange={(e) => setForm({ ...form, new_password: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, new_password: e.target.value })
+              }
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
               placeholder="Minimal 6 karakter"
             />
@@ -549,18 +664,22 @@ function ChangePasswordModal({ onClose, onSuccess }) {
             <input
               type="password"
               value={form.confirm_password}
-              onChange={(e) => setForm({ ...form, confirm_password: e.target.value })}
+              onChange={(e) =>
+                setForm({ ...form, confirm_password: e.target.value })
+              }
               className="w-full px-4 py-3 border border-gray-300 rounded-xl focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500 outline-none"
               placeholder="Ulangi password baru"
             />
           </div>
 
-          {form.new_password && form.confirm_password && form.new_password === form.confirm_password && (
-            <div className="flex items-center gap-2 text-emerald-600 text-sm">
-              <Icon icon="mdi:check-circle" />
-              <span>Password cocok</span>
-            </div>
-          )}
+          {form.new_password &&
+            form.confirm_password &&
+            form.new_password === form.confirm_password && (
+              <div className="flex items-center gap-2 text-emerald-600 text-sm">
+                <Icon icon="mdi:check-circle" />
+                <span>Password cocok</span>
+              </div>
+            )}
 
           <div className="flex gap-4 pt-6">
             <button
@@ -572,9 +691,16 @@ function ChangePasswordModal({ onClose, onSuccess }) {
             <button
               onClick={handleSubmit}
               disabled={isSubmitting}
-              className="flex-1 px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-medium rounded-xl hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+              className="flex-1 px-6 py-3 bg-gradient-to-r from-emerald-600 to-teal-600 text-white font-medium rounded-xl hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex items-center justify-center gap-2"
             >
-              {isSubmitting ? "Menyimpan..." : "Ubah Password"}
+              {isSubmitting ? (
+                <>
+                  <Icon icon="mdi:loading" className="animate-spin" />
+                  Memproses...
+                </>
+              ) : (
+                "Ubah Password"
+              )}
             </button>
           </div>
         </div>

@@ -1,466 +1,28 @@
 import React, { useEffect, useState } from "react";
 import { Icon } from "@iconify/react";
-import API from "../../services/api";
-
-/* ================= UTIL ================= */
-const formatIDR = (v) =>
-  new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-    minimumFractionDigits: 0,
-  }).format(v || 0);
-
-const formatDate = (dateString) => {
-  if (!dateString) return "-";
-  const date = new Date(dateString);
-  return date.toLocaleDateString("id-ID", {
-    day: "numeric",
-    month: "long",
-    year: "numeric",
-  });
-};
-
-/* ================= ANALISIS STATUS ================= */
-function getJenisPembayaran(order) {
-  // Analisis berdasarkan transaksi yang sudah ada
-  const transaksi = order.transaksi || [];
-  
-  // Cari transaksi yang sudah settlement
-  const settledTransactions = transaksi.filter(t => t.midtrans_status === "settlement");
-  
-  if (settledTransactions.length === 0) {
-    // Belum ada pembayaran sama sekali -> butuh DP
-    return "DP";
-  }
-  
-  // Hitung total yang sudah dibayar
-  const totalPaid = settledTransactions.reduce((sum, t) => sum + t.nominal, 0);
-  
-  if (totalPaid < order.total_harga) {
-    // Sudah bayar DP tapi belum lunas -> butuh pelunasan
-    return "PELUNASAN";
-  }
-  
-  // Sudah lunas
-  return null;
-}
-
-function getPendingTransaksi(order) {
-  return order.transaksi?.find(
-    (t) => t.midtrans_status === "pending"
-  );
-}
-
-function getSettledTransaksi(order) {
-  return order.transaksi?.filter(
-    (t) => t.midtrans_status === "settlement"
-  ) || [];
-}
-
-/* ================= STATUS BADGE - SESUAI BACKEND ================= */
-function StatusBadge({ status, transaksi, order }) {
-  const settledTrans = (transaksi || []).filter(t => t.midtrans_status === "settlement");
-  const totalPaid = settledTrans.reduce((sum, t) => sum + t.nominal, 0);
-  
-  // Tentukan status display berdasarkan backend status dan pembayaran
-  let displayLabel = "";
-  let color = "";
-  let icon = "";
-  
-  switch(status) {
-    case "MENUNGGU_PEMBAYARAN":
-      if (settledTrans.length === 0) {
-        displayLabel = "Menunggu Pembayaran DP";
-        color = "bg-yellow-100 text-yellow-700";
-        icon = "mdi:cash-clock";
-      } else {
-        displayLabel = "Menunggu Pelunasan";
-        color = "bg-orange-100 text-orange-700";
-        icon = "mdi:cash-multiple";
-      }
-      break;
-      
-    case "DIPROSES":
-      displayLabel = "Sedang Diproses";
-      color = "bg-blue-100 text-blue-700";
-      icon = "mdi:factory";
-      
-      // Jika sedang diproses tapi belum lunas
-      if (totalPaid > 0 && totalPaid < (order?.total_harga || 0)) {
-        displayLabel = "Diproses (Menunggu Pelunasan)";
-        color = "bg-blue-100 text-blue-700";
-        icon = "mdi:factory";
-      }
-      break;
-      
-    case "SELESAI":
-      displayLabel = "Selesai";
-      color = "bg-green-100 text-green-700";
-      icon = "mdi:check-circle";
-      break;
-      
-    case "DIBATALKAN":
-      displayLabel = "Dibatalkan";
-      color = "bg-red-100 text-red-700";
-      icon = "mdi:cancel";
-      break;
-      
-    default:
-      displayLabel = status.replaceAll("_", " ");
-      color = "bg-gray-100 text-gray-700";
-      icon = "mdi:information";
-  }
-  
-  return (
-    <div className="flex items-center gap-2">
-      <div className={`inline-flex items-center gap-2 px-4 py-2 rounded-xl ${color} font-medium`}>
-        <Icon icon={icon} className="text-lg" />
-        <span>{displayLabel}</span>
-      </div>
-      {settledTrans.length > 0 && (
-        <span className="text-xs px-2 py-1 bg-gray-100 text-gray-700 rounded-full">
-          {settledTrans.length === 1 ? "DP Terbayar" : "Lunas"}
-        </span>
-      )}
-    </div>
-  );
-}
-
-/* ================= PROGRESS TRACKER YANG BENAR ================= */
-function ProgressTracker({ status, transaksi, order }) {
-  const settledTrans = (transaksi || []).filter(t => t.midtrans_status === "settlement");
-  const totalPaid = settledTrans.reduce((sum, t) => sum + t.nominal, 0);
-  const orderTotal = order?.total_harga || 0;
-  
-  // Steps berdasarkan status dan pembayaran
-  const getSteps = () => {
-    if (status === "SELESAI") {
-      return [
-        { id: "ORDER_CREATED", label: "Pesanan Dibuat", icon: "mdi:file-document-outline" },
-        { id: "DP_PAID", label: "DP Dibayar", icon: "mdi:cash-check" },
-        { id: "IN_PROGRESS", label: "Diproses", icon: "mdi:factory" },
-        { id: "FULL_PAYMENT", label: "Pelunasan", icon: "mdi:cash-multiple" },
-        { id: "COMPLETED", label: "Selesai", icon: "mdi:check-circle" }
-      ];
-    }
-    
-    if (status === "DIPROSES") {
-      if (totalPaid >= orderTotal) {
-        return [
-          { id: "ORDER_CREATED", label: "Pesanan Dibuat", icon: "mdi:file-document-outline" },
-          { id: "DP_PAID", label: "DP Dibayar", icon: "mdi:cash-check" },
-          { id: "FULL_PAYMENT", label: "Lunas", icon: "mdi:cash-multiple" },
-          { id: "IN_PROGRESS", label: "Diproses", icon: "mdi:factory" },
-          { id: "COMPLETED", label: "Selesai", icon: "mdi:check-circle" }
-        ];
-      } else {
-        return [
-          { id: "ORDER_CREATED", label: "Pesanan Dibuat", icon: "mdi:file-document-outline" },
-          { id: "DP_PAID", label: "DP Dibayar", icon: "mdi:cash-check" },
-          { id: "IN_PROGRESS", label: "Diproses", icon: "mdi:factory" },
-          { id: "FULL_PAYMENT", label: "Pelunasan", icon: "mdi:cash-multiple" },
-          { id: "COMPLETED", label: "Selesai", icon: "mdi:check-circle" }
-        ];
-      }
-    }
-    
-    // Default untuk MENUNGGU_PEMBAYARAN
-    if (settledTrans.length === 0) {
-      return [
-        { id: "ORDER_CREATED", label: "Pesanan Dibuat", icon: "mdi:file-document-outline" },
-        { id: "DP_PAID", label: "Bayar DP", icon: "mdi:cash" },
-        { id: "IN_PROGRESS", label: "Diproses", icon: "mdi:factory" },
-        { id: "FULL_PAYMENT", label: "Pelunasan", icon: "mdi:cash-multiple" },
-        { id: "COMPLETED", label: "Selesai", icon: "mdi:check-circle" }
-      ];
-    } else {
-      return [
-        { id: "ORDER_CREATED", label: "Pesanan Dibuat", icon: "mdi:file-document-outline" },
-        { id: "DP_PAID", label: "DP Terbayar", icon: "mdi:cash-check" },
-        { id: "FULL_PAYMENT", label: "Bayar Pelunasan", icon: "mdi:cash-multiple" },
-        { id: "IN_PROGRESS", label: "Diproses", icon: "mdi:factory" },
-        { id: "COMPLETED", label: "Selesai", icon: "mdi:check-circle" }
-      ];
-    }
-  };
-  
-  const steps = getSteps();
-  
-  // Tentukan current step berdasarkan status dan pembayaran
-  let currentStep = 0;
-  
-  if (status === "SELESAI") {
-    currentStep = 4;
-  } else if (status === "DIPROSES") {
-    currentStep = totalPaid >= orderTotal ? 3 : 2;
-  } else if (status === "MENUNGGU_PEMBAYARAN") {
-    currentStep = settledTrans.length === 0 ? 1 : 2;
-  }
-  
-  return (
-    <div className="mt-6">
-      <div className="flex items-center justify-between mb-4">
-        <h3 className="font-semibold text-gray-700">Status Pengerjaan</h3>
-        <span className="text-sm font-medium text-gray-900">
-          {steps[currentStep]?.label || "Pesanan Dibuat"}
-        </span>
-      </div>
-      
-      <div className="relative">
-        <div className="absolute top-5 left-0 w-full h-1 bg-gray-200 rounded-full"></div>
-        <div 
-          className="absolute top-5 left-0 h-1 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full transition-all duration-500"
-          style={{ width: `${(currentStep / (steps.length - 1)) * 100}%` }}
-        ></div>
-        
-        <div className="relative flex justify-between">
-          {steps.map((step, index) => {
-            const isActive = index <= currentStep;
-            const isCurrent = index === currentStep;
-            
-            return (
-              <div key={step.id} className="flex flex-col items-center relative z-10">
-                <div className={`
-                  w-12 h-12 rounded-full flex items-center justify-center mb-2 transition-all duration-300
-                  ${isActive 
-                    ? 'bg-gradient-to-br from-indigo-500 to-purple-500 text-white shadow-lg' 
-                    : 'bg-white border-2 border-gray-300 text-gray-400'
-                  }
-                  ${isCurrent ? 'scale-110 ring-4 ring-indigo-100' : ''}
-                `}>
-                  <Icon icon={step.icon} className="text-xl" />
-                </div>
-                <span className={`text-xs font-medium text-center ${isActive ? 'text-gray-900' : 'text-gray-500'}`}>
-                  {step.label}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
-    </div>
-  );
-}
-
-/* ================= ORDER CARD YANG DIPERBAIKI ================= */
-function OrderCard({ order, onPay, processingId }) {
-  const pending = getPendingTransaksi(order);
-  const settledTrans = getSettledTransaksi(order);
-  const totalPaid = settledTrans.reduce((sum, t) => sum + t.nominal, 0);
-  const remainingPayment = order.total_harga - totalPaid;
-  const jenisPembayaran = getJenisPembayaran(order);
-  const canPay = jenisPembayaran && remainingPayment > 0;
-
-  return (
-    <div className="bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden hover:shadow-xl transition-all duration-300">
-      <div className="p-6 border-b border-gray-100">
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-          <div className="flex-1">
-            <div className="flex items-center gap-3 mb-2">
-              <div className="w-12 h-12 bg-gradient-to-br from-indigo-100 to-purple-100 rounded-xl flex items-center justify-center">
-                <Icon icon="mdi:package-variant" className="text-indigo-600 text-2xl" />
-              </div>
-              <div>
-                <h3 className="text-lg font-bold text-gray-900">{order.produk?.nama_produk || "Produk"}</h3>
-                <div className="flex items-center gap-3 text-sm text-gray-500 mt-1">
-                  <span>ID: <span className="font-mono font-medium">{order.id_pesanan}</span></span>
-                  <span>•</span>
-                  <span>{formatDate(order.tanggal_pesan)}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-          <StatusBadge status={order.status_pesanan} transaksi={order.transaksi} order={order} />
-        </div>
-      </div>
-
-      <div className="p-6">
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-          <div>
-            <h4 className="text-sm font-medium text-gray-500 mb-3">Detail Pesanan</h4>
-            <div className="space-y-2">
-              <div className="flex justify-between">
-                <span className="text-gray-600">Kuantitas</span>
-                <span className="font-semibold">{order.qty} pcs</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Bahan</span>
-                <span className="font-semibold">{order.produk?.bahan || "-"}</span>
-              </div>
-              <div className="flex justify-between">
-                <span className="text-gray-600">Catatan</span>
-                <span className="font-semibold text-right max-w-[200px] truncate">{order.catatan || "-"}</span>
-              </div>
-            </div>
-          </div>
-
-          <div>
-            <h4 className="text-sm font-medium text-gray-500 mb-3">Informasi Pembayaran</h4>
-            <div className="space-y-3">
-              <div className="flex justify-between items-center">
-                <span className="text-gray-600">Total Harga</span>
-                <span className="text-xl font-bold text-indigo-600">{formatIDR(order.total_harga)}</span>
-              </div>
-              
-              {/* Tampilkan DP jika sudah ada pembayaran */}
-              {settledTrans.length > 0 && (
-                <div className="pt-3 border-t border-gray-100 space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-gray-600">Total Dibayar</span>
-                    <span className="font-semibold text-green-600">{formatIDR(totalPaid)}</span>
-                  </div>
-                  
-                  {remainingPayment > 0 && (
-                    <div className="flex justify-between">
-                      <span className="text-gray-600">Sisa Pembayaran</span>
-                      <span className="font-semibold text-orange-600">{formatIDR(remainingPayment)}</span>
-                    </div>
-                  )}
-                  
-                  {jenisPembayaran && (
-                    <div className="mt-3 p-3 bg-blue-50 rounded-lg">
-                      <p className="text-sm font-medium text-blue-700">
-                        {jenisPembayaran === "DP" 
-                          ? "Bayar DP 50% untuk memulai produksi" 
-                          : "Lunasi pembayaran untuk menyelesaikan pesanan"}
-                      </p>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-        </div>
-
-        <ProgressTracker status={order.status_pesanan} transaksi={order.transaksi} order={order} />
-      </div>
-
-      <div className="p-6 bg-gradient-to-r from-gray-50 to-gray-100 border-t border-gray-200">
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          {pending && (
-            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-purple-50 to-indigo-50 rounded-xl border border-purple-100">
-              <Icon icon="mdi:alert-circle" className="text-purple-600 text-xl" />
-              <div>
-                <p className="text-sm font-medium text-purple-700">Pembayaran Tertunda</p>
-                <p className="text-xs text-purple-600">
-                  Selesaikan pembayaran segera untuk melanjutkan proses
-                </p>
-              </div>
-            </div>
-          )}
-
-          {canPay && (
-            <button
-              disabled={processingId === order.id_pesanan}
-              onClick={() => onPay(order, jenisPembayaran)}
-              className={`
-                inline-flex items-center justify-center gap-3
-                px-6 py-3 font-semibold rounded-xl
-                transition-all duration-300 shadow-md hover:shadow-lg
-                ${pending 
-                  ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white hover:from-purple-700 hover:to-indigo-700' 
-                  : 'bg-gradient-to-r from-indigo-600 to-purple-600 text-white hover:from-indigo-700 hover:to-purple-700'
-                }
-                disabled:opacity-50 disabled:cursor-not-allowed
-              `}
-            >
-              {processingId === order.id_pesanan ? (
-                <>
-                  <Icon icon="mdi:loading" className="animate-spin text-xl" />
-                  Memproses...
-                </>
-              ) : (
-                <>
-                  <Icon icon={pending ? "mdi:cash-fast" : "mdi:cash"} className="text-xl" />
-                  {pending
-                    ? "Lanjutkan Pembayaran"
-                    : jenisPembayaran === "DP"
-                    ? "Bayar DP 50%"
-                    : "Bayar Pelunasan"}
-                </>
-              )}
-            </button>
-          )}
-
-          {order.status_pesanan === "SELESAI" && (
-            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-emerald-50 to-green-50 rounded-xl border border-emerald-100">
-              <Icon icon="mdi:check-circle" className="text-emerald-600 text-xl" />
-              <div>
-                <p className="text-sm font-medium text-emerald-700">Pesanan Selesai</p>
-                <p className="text-xs text-emerald-600">Terima kasih telah memesan di MN Konveksi</p>
-              </div>
-            </div>
-          )}
-          
-          {order.status_pesanan === "DIPROSES" && totalPaid >= order.total_harga && (
-            <div className="flex items-center gap-3 px-4 py-3 bg-gradient-to-r from-blue-50 to-cyan-50 rounded-xl border border-blue-100">
-              <Icon icon="mdi:factory" className="text-blue-600 text-xl" />
-              <div>
-                <p className="text-sm font-medium text-blue-700">Sedang Diproses</p>
-                <p className="text-xs text-blue-600">
-                  Pesanan Anda sedang dalam proses produksi
-                </p>
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+import OrderService from "../../services/orderService";
+import OrderCard from "../../components/customer/pesanan/OrderCard";
 
 /* ================= MAIN COMPONENT ================= */
 export default function PesananSaya() {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+  const [cancellingId, setCancellingId] = useState(null);
   const [activeTab, setActiveTab] = useState("all");
   const [error, setError] = useState(null);
+  const [deleteModal, setDeleteModal] = useState({ show: false, order: null });
+  const [cancelPaymentModal, setCancelPaymentModal] = useState({ show: false, order: null, transaksi: null });
 
   async function loadOrders() {
     try {
       setError(null);
-      const token = localStorage.getItem("mn_token");
-      
-      if (!token) {
-        setOrders([]);
-        setLoading(false);
-        setError("Anda belum login. Silakan login terlebih dahulu.");
-        return;
-      }
-
-      const response = await API.getOrders();
-      
-      if (response.data?.success) {
-        // Normalize status - ubah dari frontend ke backend jika perlu
-        const normalizedOrders = (response.data.data || []).map(order => {
-          // Jika ada status frontend lama, ubah ke backend
-          let status = order.status_pesanan;
-          
-          // Mapping dari frontend ke backend
-          if (status === "DIBUAT") status = "MENUNGGU_PEMBAYARAN";
-          if (status === "MENUNGGU_DP") status = "MENUNGGU_PEMBAYARAN";
-          if (status === "MENUNGGU_PELUNASAN") status = "MENUNGGU_PEMBAYARAN";
-          
-          return {
-            ...order,
-            status_pesanan: status
-          };
-        });
-        
-        setOrders(normalizedOrders);
-      } else {
-        setOrders([]);
-      }
+      const ordersData = await OrderService.getOrders();
+      setOrders(ordersData);
     } catch (error) {
-      console.error("Error loading orders:", error);
+      setError(error.message);
       setOrders([]);
-      
-      if (error.response?.status === 401) {
-        setError("Sesi Anda telah berakhir. Silakan login kembali.");
-      } else {
-        setError(error.response?.data?.message || "Gagal memuat pesanan");
-      }
     } finally {
       setLoading(false);
     }
@@ -472,52 +34,29 @@ export default function PesananSaya() {
     return () => clearInterval(interval);
   }, []);
 
-  // Filter orders dengan logika yang benar
-  const filteredOrders = orders.filter(order => {
-    if (activeTab === "all") return true;
-    if (activeTab === "pending") {
-      // Menunggu pembayaran atau menunggu pelunasan
-      const settledTrans = getSettledTransaksi(order);
-      const totalPaid = settledTrans.reduce((sum, t) => sum + t.nominal, 0);
-      
-      return order.status_pesanan === "MENUNGGU_PEMBAYARAN" || 
-             (order.status_pesanan === "DIPROSES" && totalPaid < order.total_harga);
-    }
-    if (activeTab === "processing") {
-      return order.status_pesanan === "DIPROSES";
-    }
-    if (activeTab === "completed") return order.status_pesanan === "SELESAI";
-    return true;
-  });
-
   function openSnap(snapToken) {
     if (typeof window.snap !== 'undefined') {
       window.snap.pay(snapToken, {
-        onSuccess: function(result) {
-          console.log("Payment success:", result);
+        onSuccess: function() {
           loadOrders();
         },
-        onPending: function(result) {
-          console.log("Payment pending:", result);
+        onPending: function() {
           loadOrders();
         },
-        onError: function(result) {
-          console.error("Payment error:", result);
-          alert("Pembayaran gagal, silakan coba lagi");
+        onError: function() {
+          showToast('error', 'Pembayaran gagal, silakan coba lagi');
         },
         onClose: function() {
-          console.log("Payment popup closed");
           loadOrders();
         }
       });
     } else {
-      console.error("Snap.js not loaded");
-      alert("Sistem pembayaran sedang tidak tersedia. Silakan refresh halaman.");
+      showToast('error', 'Sistem pembayaran sedang tidak tersedia. Silakan refresh halaman.');
     }
   }
 
   async function handlePay(order, jenis) {
-    const pending = getPendingTransaksi(order);
+    const pending = order.transaksi?.find((t) => t.midtrans_status === "pending");
 
     if (pending?.snap_token) {
       openSnap(pending.snap_token);
@@ -525,39 +64,147 @@ export default function PesananSaya() {
     }
 
     if (!jenis) {
-      // Auto-detect jenis pembayaran jika tidak diberikan
-      jenis = getJenisPembayaran(order);
+      const transaksi = order.transaksi || [];
+      const settledTransactions = transaksi.filter(t => t.midtrans_status === "settlement");
+      
+      if (settledTransactions.length === 0) {
+        jenis = "DP";
+      } else {
+        const totalPaid = settledTransactions.reduce((sum, t) => sum + t.nominal, 0);
+        if (totalPaid < order.total_harga) {
+          jenis = "PELUNASAN";
+        }
+      }
     }
     
     if (!jenis) {
-      alert("Pesanan ini tidak memerlukan pembayaran");
+      showToast('error', 'Pesanan ini tidak memerlukan pembayaran');
       return;
     }
 
     try {
       setProcessingId(order.id_pesanan);
-
-      const response = await API.createPayment({
+      const snapToken = await OrderService.createPayment({
         id_pesanan: order.id_pesanan,
         jenis_pembayaran: jenis,
-        // Tambahkan nominal jika perlu berdasarkan jenis
-        nominal: jenis === "DP" 
-          ? Math.ceil(order.total_harga * 0.5)  // 50% untuk DP
-          : order.total_harga - getSettledTransaksi(order).reduce((sum, t) => sum + t.nominal, 0)  // Sisa untuk pelunasan
+        order
       });
-
-      if (response.data?.success && response.data.data?.snap_token) {
-        openSnap(response.data.data.snap_token);
-      } else {
-        alert("Gagal mendapatkan token pembayaran");
-      }
+      openSnap(snapToken);
     } catch (error) {
-      console.error("Payment error:", error);
-      alert(error.response?.data?.message || "Gagal membuat pembayaran");
+      showToast('error', error.message);
     } finally {
       setProcessingId(null);
     }
   }
+
+  // Helper untuk toast notification
+  const showToast = (type, message) => {
+    const notification = document.createElement('div');
+    notification.className = 'fixed top-6 right-6 z-50 animate-slide-in';
+    
+    const colors = {
+      success: 'from-green-600 to-emerald-600',
+      error: 'from-red-600 to-pink-600'
+    };
+    
+    const icons = {
+      success: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>',
+      error: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>'
+    };
+    
+    notification.innerHTML = `
+      <div class="bg-gradient-to-r ${colors[type]} text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          ${icons[type]}
+        </svg>
+        <span class="font-medium">${message}</span>
+      </div>
+    `;
+    
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 3000);
+  };
+
+  // Modal handlers untuk delete
+  const openDeleteModal = (order) => {
+    setDeleteModal({ show: true, order });
+  };
+
+  const closeDeleteModal = () => {
+    setDeleteModal({ show: false, order: null });
+  };
+
+  const handleDeleteOrder = async () => {
+    if (!deleteModal.order) return;
+
+    try {
+      setDeletingId(deleteModal.order.id_pesanan);
+      
+      await OrderService.deleteOrder(deleteModal.order.id_pesanan);
+      
+      closeDeleteModal();
+      await loadOrders();
+      showToast('success', 'Pesanan berhasil dihapus');
+      
+    } catch (error) {
+      showToast('error', error.message);
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  // Modal handlers untuk cancel payment
+  const openCancelPaymentModal = (order, transaksi) => {
+    setCancelPaymentModal({ show: true, order, transaksi });
+  };
+
+  const closeCancelPaymentModal = () => {
+    setCancelPaymentModal({ show: false, order: null, transaksi: null });
+  };
+
+  const handleCancelPayment = async () => {
+    if (!cancelPaymentModal.transaksi) return;
+
+    try {
+      setCancellingId(cancelPaymentModal.order.id_pesanan);
+      
+      await OrderService.cancelPayment(cancelPaymentModal.transaksi.id_transaksi);
+      
+      closeCancelPaymentModal();
+      await loadOrders();
+      showToast('success', 'Pembayaran berhasil dibatalkan');
+      
+    } catch (error) {
+      showToast('error', error.message);
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
+  const canDeleteOrder = (order) => {
+    if (["DIPROSES", "SELESAI"].includes(order.status_pesanan)) {
+      return false;
+    }
+
+    const hasSettlement = order.transaksi?.some(
+      (t) => t.midtrans_status === "settlement"
+    );
+    if (hasSettlement) {
+      return false;
+    }
+
+    const validStatuses = ["pending", "expire", "cancel", "deny"];
+    
+    if (!order.transaksi || order.transaksi.length === 0) {
+      return true;
+    }
+    
+    const hasInvalidPayment = order.transaksi?.some(
+      (t) => t.midtrans_status && !validStatuses.includes(t.midtrans_status)
+    );
+    
+    return !hasInvalidPayment;
+  };
 
   if (loading) {
     return (
@@ -580,19 +227,30 @@ export default function PesananSaya() {
             <Icon icon="mdi:alert-circle" className="text-red-500 text-6xl mx-auto mb-4" />
             <h3 className="text-xl font-semibold text-gray-900 mb-2">Terjadi Kesalahan</h3>
             <p className="text-gray-600 mb-6">{error}</p>
-            <button
-              onClick={() => window.location.href = "/login"}
-              className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-colors"
-            >
-              Login
-            </button>
+            <div className="mt-6">
+              <button
+                onClick={loadOrders}
+                className="px-6 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-xl hover:from-indigo-700 hover:to-purple-700 transition-colors mr-3"
+              >
+                Coba Lagi
+              </button>
+              <button
+                onClick={() => window.location.href = "/login"}
+                className="px-6 py-3 bg-white text-indigo-600 border border-indigo-600 rounded-xl hover:bg-indigo-50 transition-colors"
+              >
+                Login
+              </button>
+            </div>
           </div>
         </div>
       </div>
     );
   }
 
-  // Hitung statistik dengan logika yang benar
+  const getSettledTransaksi = (order) => {
+    return order.transaksi?.filter((t) => t.midtrans_status === "settlement") || [];
+  };
+
   const stats = {
     total: orders.length,
     waiting: orders.filter(order => {
@@ -609,6 +267,21 @@ export default function PesananSaya() {
     completed: orders.filter(order => order.status_pesanan === "SELESAI").length
   };
 
+  const filteredOrders = orders.filter(order => {
+    if (activeTab === "all") return true;
+    if (activeTab === "pending") {
+      const settledTrans = getSettledTransaksi(order);
+      const totalPaid = settledTrans.reduce((sum, t) => sum + t.nominal, 0);
+      return order.status_pesanan === "MENUNGGU_PEMBAYARAN" || 
+             (order.status_pesanan === "DIPROSES" && totalPaid < order.total_harga);
+    }
+    if (activeTab === "processing") {
+      return order.status_pesanan === "DIPROSES";
+    }
+    if (activeTab === "completed") return order.status_pesanan === "SELESAI";
+    return true;
+  });
+
   return (
     <div className="min-h-screen bg-gradient-to-b from-gray-50 to-white py-8">
       <div className="container mx-auto px-4">
@@ -623,6 +296,7 @@ export default function PesananSaya() {
             </div>
           </div>
 
+          {/* Stats Cards */}
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-8">
             <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-200">
               <div className="flex items-center justify-between">
@@ -665,6 +339,7 @@ export default function PesananSaya() {
             </div>
           </div>
 
+          {/* Tabs */}
           <div className="flex overflow-x-auto border-b border-gray-200 mb-8">
             <button
               onClick={() => setActiveTab("all")}
@@ -709,6 +384,7 @@ export default function PesananSaya() {
           </div>
         </div>
 
+        {/* Orders List */}
         {filteredOrders.length === 0 ? (
           <div className="text-center py-20 bg-white rounded-2xl shadow-sm border border-gray-200">
             <div className="w-24 h-24 bg-gray-100 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -738,12 +414,18 @@ export default function PesananSaya() {
                 key={order.id_pesanan}
                 order={order}
                 onPay={handlePay}
+                onDelete={openDeleteModal}
+                onCancelPayment={openCancelPaymentModal}
+                canDelete={canDeleteOrder(order)}
                 processingId={processingId}
+                deletingId={deletingId}
+                cancellingId={cancellingId}
               />
             ))}
           </div>
         )}
 
+        {/* Help Section */}
         <div className="mt-12 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-8 border border-indigo-100">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
@@ -784,6 +466,144 @@ export default function PesananSaya() {
           </div>
         </div>
       </div>
+
+      {/* Modal Konfirmasi Hapus */}
+      {deleteModal.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-red-100 rounded-xl flex items-center justify-center">
+                  <Icon icon="mdi:alert-circle-outline" className="text-red-600 text-2xl" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Hapus Pesanan</h3>
+                  <p className="text-gray-600">Konfirmasi penghapusan pesanan</p>
+                </div>
+              </div>
+              
+              <div className="mb-6">
+                <p className="text-gray-700 mb-2">
+                  Apakah Anda yakin ingin menghapus pesanan ini?
+                </p>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="font-medium text-gray-900">#{deleteModal.order?.id_pesanan}</p>
+                  <p className="text-gray-600">{deleteModal.order?.produk?.nama_produk}</p>
+                  <p className="text-lg font-bold text-gray-900 mt-1">
+                    Rp {deleteModal.order?.total_harga?.toLocaleString()}
+                  </p>
+                  <div className="mt-2 text-sm text-gray-500">
+                    <p>Status: {deleteModal.order?.status_pesanan}</p>
+                    <p>Tanggal: {new Date(deleteModal.order?.tanggal_pesan).toLocaleDateString("id-ID")}</p>
+                  </div>
+                </div>
+                <p className="text-sm text-red-600 mt-3">
+                  <Icon icon="mdi:information-outline" className="inline mr-1" />
+                  Tindakan ini tidak dapat dibatalkan
+                </p>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={closeDeleteModal}
+                  disabled={deletingId}
+                  className="px-5 py-2.5 bg-white text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors border border-gray-300 disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleDeleteOrder}
+                  disabled={deletingId}
+                  className="px-5 py-2.5 bg-gradient-to-r from-red-600 to-pink-600 text-white font-medium rounded-xl hover:from-red-700 hover:to-pink-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {deletingId ? (
+                    <>
+                      <div className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                      Menghapus...
+                    </>
+                  ) : (
+                    <>
+                      <Icon icon="mdi:delete" />
+                      Hapus Pesanan
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Cancel Payment */}
+      {cancelPaymentModal.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+                  <Icon icon="mdi:cash-remove" className="text-orange-600 text-2xl" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Batalkan Pembayaran</h3>
+                  <p className="text-gray-600">Konfirmasi pembatalan transaksi</p>
+                </div>
+              </div>
+              
+              <div className="mb-6">
+                <p className="text-gray-700 mb-2">
+                  Apakah Anda yakin ingin membatalkan pembayaran ini?
+                </p>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="font-medium text-gray-900">
+                    Pesanan #{cancelPaymentModal.order?.id_pesanan}
+                  </p>
+                  <p className="text-gray-600">{cancelPaymentModal.order?.produk?.nama_produk}</p>
+                  <p className="text-lg font-bold text-gray-900 mt-1">
+                    Rp {cancelPaymentModal.transaksi?.nominal?.toLocaleString()}
+                  </p>
+                  <div className="mt-2 text-sm text-gray-500">
+                    <p>Jenis: {cancelPaymentModal.transaksi?.jenis_pembayaran}</p>
+                    <p>Status: Pending</p>
+                  </div>
+                </div>
+                <div className="mt-3 p-3 bg-orange-50 rounded-lg border border-orange-100">
+                  <p className="text-sm text-orange-700 flex items-start gap-2">
+                    <Icon icon="mdi:information-outline" className="flex-shrink-0 mt-0.5" />
+                    <span>Setelah dibatalkan, Anda dapat membuat pembayaran baru untuk pesanan ini.</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={closeCancelPaymentModal}
+                  disabled={cancellingId}
+                  className="px-5 py-2.5 bg-white text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors border border-gray-300 disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleCancelPayment}
+                  disabled={cancellingId}
+                  className="px-5 py-2.5 bg-gradient-to-r from-orange-600 to-red-600 text-white font-medium rounded-xl hover:from-orange-700 hover:to-red-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {cancellingId ? (
+                    <>
+                      <div className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                      Membatalkan...
+                    </>
+                  ) : (
+                    <>
+                      <Icon icon="mdi:close-circle" />
+                      Batalkan Pembayaran
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

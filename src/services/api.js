@@ -19,6 +19,12 @@ api.interceptors.request.use(
     if (token) {
       config.headers.Authorization = `Bearer ${token}`;
     }
+    console.log('API Request:', {
+      method: config.method,
+      url: config.url,
+      hasToken: !!token,
+      token: token ? token.substring(0, 30) + '...' : 'none'
+    });
     return config;
   },
   (error) => {
@@ -28,10 +34,25 @@ api.interceptors.request.use(
 
 // ============= RESPONSE INTERCEPTOR =============
 api.interceptors.response.use(
-  (response) => response,
+  (response) => {
+    console.log('API Response:', {
+      url: response.config.url,
+      status: response.status,
+      data: response.data
+    });
+    return response;
+  },
   (error) => {
+    console.error('API Error:', {
+      url: error.config?.url,
+      status: error.response?.status,
+      data: error.response?.data,
+      message: error.message
+    });
+    
     // Auto logout on 401
     if (error.response?.status === 401) {
+      console.log('401 Unauthorized - clearing auth');
       localStorage.removeItem("mn_token");
       localStorage.removeItem("mn_user");
       window.dispatchEvent(new Event("authChanged"));
@@ -154,38 +175,102 @@ export const produkService = {
 
 // ============= ORDER SERVICE =============
 export const orderService = {
-  createOrder: async (data) => {
+  // ✅ GET USER'S ORDERS - Customer only
+  getMyOrders: async () => {
     try {
-      const response = await api.post("/pesanan/create", data);
-      return response.data;
-    } catch (error) {
-      throw error;
-    }
-  },
-  
-  getOrders: async () => {
-    try {
+      // Endpoint: GET /api/pesanan/me
       const response = await api.get("/pesanan/me");
       return response.data;
     } catch (error) {
+      console.error("Error in getMyOrders:", error);
       throw error;
     }
   },
   
+  // ✅ GET ALL ORDERS (ADMIN ONLY) - FIXED!
+  getAllOrders: async () => {
+    try {
+      // Endpoint: GET /api/pesanan (admin with auth + requireAdmin middleware)
+      const response = await api.get("/pesanan");
+      return response.data;
+    } catch (error) {
+      console.error("Error in getAllOrders:", error);
+      throw error;
+    }
+  },
+  
+  // ✅ CREATE ORDER
+  createOrder: async (data) => {
+    try {
+      // Endpoint: POST /api/pesanan
+      const response = await api.post("/pesanan", data);
+      return response.data;
+    } catch (error) {
+      console.error("Error in createOrder:", error);
+      throw error;
+    }
+  },
+  
+  // ✅ GET ORDER DETAIL
   getOrderDetail: async (id) => {
     try {
+      // Endpoint: GET /api/pesanan/{id}
       const response = await api.get(`/pesanan/${id}`);
       return response.data;
     } catch (error) {
+      console.error("Error in getOrderDetail:", error);
       throw error;
     }
   },
   
-  updateOrderStatus: async (id, status) => {
+  // ✅ DELETE ORDER - Updated to support both customer & admin
+  deleteOrder: async (id) => {
     try {
-      const response = await api.put(`/pesanan/${id}/status`, { status });
+      console.log('Calling DELETE /pesanan/' + id);
+      
+      // Endpoint: DELETE /api/pesanan/{id}
+      const response = await api.delete(`/pesanan/${id}`);
+      
+      console.log('Delete response:', response);
       return response.data;
     } catch (error) {
+      console.error('Error in deleteOrder:', error);
+      throw error;
+    }
+  },
+  
+  // ✅ UPDATE ORDER STATUS (ADMIN) - FIXED!
+  updateOrderStatus: async (id, data) => {
+    try {
+      // Endpoint: PUT /api/pesanan/{id}/status (sesuai backend: router.put("/:id/status", ...))
+      const response = await api.put(`/pesanan/${id}/status`, data);
+      return response.data;
+    } catch (error) {
+      console.error("Error in updateOrderStatus:", error);
+      throw error;
+    }
+  },
+  
+  // ✅ GET USER SUMMARY
+  getUserSummary: async () => {
+    try {
+      // Endpoint: GET /api/pesanan/me/summary
+      const response = await api.get("/pesanan/me/summary");
+      return response.data;
+    } catch (error) {
+      console.error("Error in getUserSummary:", error);
+      throw error;
+    }
+  },
+  
+  // ✅ GET ADMIN SUMMARY
+  getAdminSummary: async () => {
+    try {
+      // Endpoint: GET /api/pesanan/admin/summary
+      const response = await api.get("/pesanan/admin/summary");
+      return response.data;
+    } catch (error) {
+      console.error("Error in getAdminSummary:", error);
       throw error;
     }
   },
@@ -195,9 +280,21 @@ export const orderService = {
 export const paymentService = {
   createPayment: async (data) => {
     try {
-      const response = await api.post("/transaksi/create", data);
+      const response = await api.post("/transaksi", data);
       return response.data;
     } catch (error) {
+      console.error("Error in createPayment:", error);
+      throw error;
+    }
+  },
+  
+  cancelPayment: async (id_transaksi) => {
+    try {
+      // Endpoint: DELETE /api/transaksi/{id}
+      const response = await api.delete(`/transaksi/${id_transaksi}`);
+      return response.data;
+    } catch (error) {
+      console.error("Error in cancelPayment:", error);
       throw error;
     }
   },
@@ -207,6 +304,7 @@ export const paymentService = {
       const response = await api.get(`/transaksi/status/${orderId}`);
       return response.data;
     } catch (error) {
+      console.error("Error in getPaymentStatus:", error);
       throw error;
     }
   },
@@ -216,6 +314,7 @@ export const paymentService = {
       const response = await api.get("/transaksi/me");
       return response.data;
     } catch (error) {
+      console.error("Error in getPaymentHistory:", error);
       throw error;
     }
   },
@@ -235,9 +334,12 @@ const API = {
   getProdukLimit: produkService.getProdukLimit,
   
   // Orders
+  getOrders: orderService.getMyOrders,
+  getAllOrders: orderService.getAllOrders,
   createOrder: orderService.createOrder,
-  getOrders: orderService.getOrders,
   getOrderDetail: orderService.getOrderDetail,
+  updateOrderStatus: orderService.updateOrderStatus,
+  deleteOrder: orderService.deleteOrder,
   
   // Transactions
   createPayment: paymentService.createPayment,
@@ -245,6 +347,4 @@ const API = {
 };
 
 export default API;
-
-// Export axios instance jika diperlukan
 export { api };

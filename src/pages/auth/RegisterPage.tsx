@@ -4,6 +4,8 @@ import { Link, useNavigate } from "react-router-dom";
 import { EyeIcon, EyeSlashIcon, ArrowRightIcon, ArrowLeftIcon, CheckCircleIcon } from "@heroicons/react/24/outline";
 import { Icon } from "@iconify/react";
 import { authService } from "../../services/api"; // ✅ IMPORT DARI UNIFIED API
+import Logo from "../../assets/LOGO-MN.png"; // ✅ IMPORT LOGO
+
 
 /* ================= COLOR SCHEME ================= */
 const COLORS = {
@@ -142,8 +144,13 @@ export default function RegisterPage() {
             <div className="relative z-10">
               <Link to="/" className="flex items-center gap-3 group mb-12">
                 <div className="relative">
-                  <div className="w-16 h-16 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-xl">
-                    <Icon icon="mdi:needle" className="text-white text-3xl" />
+                  {/* Container untuk gambar logo */}
+                  <div className="w-16 h-16 rounded-2xl overflow-hidden flex items-center justify-center group-hover:scale-110 transition-transform duration-300 shadow-xl bg-gradient-to-br from-indigo-500 to-purple-600">
+                    <img
+                      src={Logo} // ✅ MENGGUNAKAN GAMBAR LOGO
+                      alt="MN Konveksi Logo"
+                      className="w-14 h-14 object-contain p-2"
+                    />
                   </div>
                   <div className="absolute -top-2 -right-2 w-6 h-6 bg-emerald-500 rounded-full border-2 border-white shadow-lg"></div>
                 </div>
