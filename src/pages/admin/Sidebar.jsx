@@ -1,185 +1,126 @@
-// src/pages/admin/Sidebar.jsx
-import React, { useState, useEffect } from "react";
-import { NavLink, useNavigate } from "react-router-dom";
-import {
-  LayoutDashboard,
-  ShoppingBag,
-  Package,
-  Users,
-  BarChart3,
-  LogOut,
-  User,
-  ChevronLeft,
-  ChevronRight,
-  Settings,
-  HelpCircle,
-} from "lucide-react";
+// src/components/admin/AdminSidebar.jsx
+import React, { useState } from "react";
+import { NavLink, useNavigate, useLocation } from "react-router-dom";
+import { Icon } from "@iconify/react";
+import Logo from "../../assets/LOGO-MN.png";
 
-export default function Sidebar({
+export default function AdminSidebar({
   collapsed = false,
   mobile = false,
   onClose = () => {},
   onToggleCollapse = () => {},
 }) {
   const navigate = useNavigate();
-  const [activeMenu, setActiveMenu] = useState("");
-  const [user, setUser] = useState(null);
+  const location = useLocation();
+  const [user] = useState(() => {
+    const storedUser = localStorage.getItem("mn_user");
+    return storedUser ? JSON.parse(storedUser) : null;
+  });
 
-  // Ambil data user
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        const token = localStorage.getItem("mn_token");
-        
-        // Fetch user data saja
-        const userRes = await fetch(
-          "https://be-mn-konveksi.vercel.app/api/auth/me",
-          {
-            headers: {
-              Authorization: `Bearer ${token}`,
-            },
-          }
-        );
-        
-        if (userRes.ok) {
-          const userData = await userRes.json();
-          setUser(userData.data);
-        }
-      } catch (err) {
-        console.error("Gagal fetch data sidebar:", err);
-        const storedUser = JSON.parse(localStorage.getItem("mn_user") || "{}");
-        setUser(storedUser);
-      }
-    }
-
-    fetchData();
-  }, []);
+  // Gradient utama yang sama dengan hero section user
+  const primaryGradient =
+    "bg-gradient-to-br from-gray-900 via-indigo-900 to-purple-900";
 
   const menuItems = [
     {
       id: "dashboard",
       to: "/admin/dashboard",
       label: "Dashboard",
-      icon: LayoutDashboard,
-      color: "bg-gradient-to-r from-indigo-600 to-purple-600",
-      inactiveColor: "text-indigo-600",
+      icon: "mdi:view-dashboard",
+      activeColor: "from-indigo-500 to-purple-500",
     },
     {
       id: "orders",
       to: "/admin/orders",
       label: "Pesanan",
-      icon: ShoppingBag,
-      color: "bg-gradient-to-r from-emerald-600 to-teal-600",
-      inactiveColor: "text-emerald-600",
+      icon: "mdi:shopping-outline",
+      activeColor: "from-emerald-500 to-teal-500",
     },
     {
       id: "products",
       to: "/admin/products",
       label: "Produk",
-      icon: Package,
-      color: "bg-gradient-to-r from-amber-600 to-orange-600",
-      inactiveColor: "text-amber-600",
+      icon: "mdi:tshirt-crew",
+      activeColor: "from-amber-500 to-orange-500",
     },
     {
       id: "users",
       to: "/admin/users",
       label: "Pengguna",
-      icon: Users,
-      color: "bg-gradient-to-r from-purple-600 to-pink-600",
-      inactiveColor: "text-purple-600",
+      icon: "mdi:account-group",
+      activeColor: "from-pink-500 to-rose-500",
     },
     {
       id: "reports",
       to: "/admin/laporan",
       label: "Laporan",
-      icon: BarChart3,
-      color: "bg-gradient-to-r from-cyan-600 to-blue-500",
-      inactiveColor: "text-cyan-600",
+      icon: "mdi:chart-bar",
+      activeColor: "from-cyan-500 to-blue-500",
+    },
+    {
+      id: "settings",
+      to: "/admin/settings",
+      label: "Pengaturan",
+      icon: "mdi:cog",
+      activeColor: "from-gray-600 to-slate-600",
     },
   ];
 
   const secondaryItems = [
     {
-      id: "settings",
-      to: "/admin/settings",
-      label: "Pengaturan",
-      icon: Settings,
-      color: "bg-gradient-to-r from-gray-600 to-gray-700",
-      inactiveColor: "text-gray-600",
-    },
-    {
-      id: "help",
-      to: "/admin/help",
-      label: "Bantuan",
-      icon: HelpCircle,
-      color: "bg-gradient-to-r from-slate-600 to-slate-700",
-      inactiveColor: "text-slate-600",
+      id: "logout",
+      action: () => {
+        localStorage.removeItem("mn_token");
+        localStorage.removeItem("mn_user");
+        navigate("/admin/login");
+      },
+      label: "Keluar",
+      icon: "mdi:logout",
     },
   ];
 
-  const handleLogout = () => {
-    localStorage.removeItem("mn_token");
-    localStorage.removeItem("mn_user");
-    navigate("/admin/login");
-  };
-
-  const linkClass = ({ isActive }, item) => {
-    const baseClass = "group flex items-center w-full rounded-lg transition-all duration-300 hover:scale-[1.02]";
-    const spacing = collapsed ? "px-3 py-3 justify-center" : "px-4 py-3 gap-3";
-    
-    if (isActive) {
-      return `${baseClass} ${spacing} ${item.color} text-white shadow-lg shadow-indigo-500/20`;
-    }
-    
-    return `${baseClass} ${spacing} text-gray-700 hover:bg-gray-50 hover:text-gray-900 border-l-4 border-transparent hover:border-gray-300`;
-  };
-
   return (
-    <div className={`
-      flex flex-col h-full
-      ${mobile 
-        ? "w-72 bg-gradient-to-b from-slate-900 to-gray-900 border-r border-gray-800" 
-        : "bg-gradient-to-b from-slate-900 to-gray-900 border-r border-gray-800"
-      }
-      transition-all duration-300
-      shadow-2xl
-    `}>
+    <div
+      className={`
+        flex flex-col h-full ${primaryGradient}
+        ${mobile ? "w-72 shadow-2xl" : collapsed ? "w-20" : "w-64"}
+        transition-all duration-300
+        border-r border-white/10
+      `}
+    >
       {/* HEADER */}
-      <div className="p-5 border-b border-gray-800">
+      <div className="p-5 border-b border-white/10">
         <div className="flex items-center justify-between">
-          {!collapsed && (
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center shadow-lg">
-                  <Package className="text-white" size={20} />
-                </div>
-                <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-gray-900 shadow-sm"></div>
-              </div>
+          <div
+            className={`flex items-center ${
+              collapsed ? "justify-center" : "gap-3"
+            }`}
+          >
+            <div className="relative">
+              <img
+                src={Logo}
+                alt="MN Konveksi Logo"
+                className="w-10 h-10 object-contain filter brightness-0 invert"
+              />
+              <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full border-2 border-gray-900 shadow-sm"></div>
+            </div>
+            {!collapsed && (
               <div>
                 <h1 className="text-base font-bold text-white">MN KONVEKSI</h1>
-                <p className="text-xs text-gray-400">Admin Panel</p>
+                <p className="text-xs text-gray-300">Admin Panel</p>
               </div>
-            </div>
-          )}
-          
-          {collapsed && (
-            <div className="flex justify-center w-full">
-              <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center shadow-lg">
-                <Package className="text-white" size={20} />
-              </div>
-            </div>
-          )}
-          
+            )}
+          </div>
+
           {!mobile && (
             <button
               onClick={onToggleCollapse}
-              className="p-2 hover:bg-gray-800 rounded-lg transition-colors text-gray-400 hover:text-white"
+              className="p-2 hover:bg-white/10 rounded-xl transition-colors text-gray-300 hover:text-white"
             >
-              {collapsed ? (
-                <ChevronRight size={18} />
-              ) : (
-                <ChevronLeft size={18} />
-              )}
+              <Icon
+                icon={collapsed ? "mdi:chevron-right" : "mdi:chevron-left"}
+                className="text-xl"
+              />
             </button>
           )}
         </div>
@@ -189,109 +130,120 @@ export default function Sidebar({
       <nav className="flex-1 px-3 py-4 overflow-y-auto">
         <div className="space-y-2">
           {menuItems.map((item) => {
-            const Icon = item.icon;
+            const isActive =
+              location.pathname === item.to ||
+              location.pathname.startsWith(`${item.to}/`);
+
             return (
               <NavLink
                 key={item.id}
                 to={item.to}
-                onClick={() => {
-                  setActiveMenu(item.id);
-                  onClose();
-                }}
-                className={(isActive) => linkClass(isActive, item)}
+                onClick={onClose}
+                className={`
+                  group flex items-center w-full rounded-xl transition-all duration-300
+                  ${collapsed ? "px-3 py-3 justify-center" : "px-4 py-3 gap-3"}
+                  ${
+                    isActive
+                      ? `bg-gradient-to-r ${item.activeColor} text-white shadow-lg`
+                      : "text-gray-300 hover:bg-white/10 hover:text-white"
+                  }
+                `}
               >
-                <div className={`relative ${collapsed ? '' : 'flex items-center gap-3'}`}>
-                  <div className={`
-                    w-9 h-9 rounded-lg flex items-center justify-center transition-all shadow-sm
-                    ${activeMenu === item.id 
-                      ? 'text-white' 
-                      : `bg-gray-800 ${item.inactiveColor} group-hover:scale-110`
-                    }
-                  `}>
-                    <Icon size={18} />
-                  </div>
-                  
-                  {!collapsed && (
-                    <>
-                      <span className="flex-1 font-medium text-sm text-gray-200 group-hover:text-white">{item.label}</span>
-                    </>
-                  )}
+                <div
+                  className={`
+                  w-9 h-9 rounded-lg flex items-center justify-center transition-all
+                  ${
+                    isActive
+                      ? "bg-white/20 text-white"
+                      : "bg-white/5 text-gray-300 group-hover:bg-white/10 group-hover:text-white"
+                  }
+                `}
+                >
+                  <Icon icon={item.icon} className="text-xl" />
                 </div>
+
+                {!collapsed && (
+                  <>
+                    <span className="flex-1 font-medium text-sm">
+                      {item.label}
+                    </span>
+                    {isActive && (
+                      <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+                    )}
+                  </>
+                )}
               </NavLink>
             );
           })}
         </div>
 
-        {/* SECONDARY MENU */}
+        {/* DIVIDER */}
         {!collapsed && (
-          <div className="mt-8 pt-6 border-t border-gray-800">
-            <p className="px-4 text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-              LAINNYA
-            </p>
-            <div className="space-y-2">
-              {secondaryItems.map((item) => {
-                const Icon = item.icon;
-                return (
-                  <NavLink
-                    key={item.id}
-                    to={item.to}
-                    onClick={onClose}
-                    className={(isActive) => linkClass(isActive, item)}
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className={`w-9 h-9 rounded-lg bg-gray-800 ${item.inactiveColor} flex items-center justify-center shadow-sm`}>
-                        <Icon size={18} />
-                      </div>
-                      <span className="flex-1 font-medium text-sm text-gray-300 group-hover:text-white">{item.label}</span>
-                    </div>
-                  </NavLink>
-                );
-              })}
-            </div>
+          <div className="my-6 px-4">
+            <div className="h-px bg-gradient-to-r from-transparent via-white/20 to-transparent"></div>
           </div>
         )}
+
+        {/* SECONDARY MENU */}
+        <div className="space-y-2">
+          {secondaryItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => {
+                if (item.action) item.action();
+                else if (item.to) navigate(item.to);
+                onClose();
+              }}
+              className={`
+                group flex items-center w-full rounded-xl transition-all duration-300
+                ${collapsed ? "px-3 py-3 justify-center" : "px-4 py-3 gap-3"}
+                text-gray-300 hover:bg-white/10 hover:text-white
+              `}
+            >
+              <div className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center group-hover:bg-white/10">
+                <Icon icon={item.icon} className="text-xl" />
+              </div>
+
+              {!collapsed && (
+                <span className="flex-1 font-medium text-sm text-left">
+                  {item.label}
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
       </nav>
 
-      {/* USER PROFILE & LOGOUT */}
-      <div className="px-3 py-4 border-t border-gray-800">
-        <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-gray-800/50 transition-colors group">
+      {/* USER PROFILE */}
+      <div className="px-3 py-4 border-t border-white/10">
+        <div
+          className={`
+          flex items-center gap-3 p-3 rounded-xl hover:bg-white/10 transition-colors
+          ${collapsed ? "justify-center" : ""}
+        `}
+        >
           <div className="relative">
-            <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center shadow-lg">
-              <User className="text-white" size={18} />
+            <div className="w-10 h-10 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center text-white font-bold shadow-md">
+              {user?.nama?.charAt(0).toUpperCase() || "A"}
             </div>
             <div className="absolute -bottom-1 -right-1 w-3 h-3 bg-emerald-500 rounded-full border-2 border-gray-900 shadow-sm"></div>
           </div>
-          
+
           {!collapsed && (
             <div className="flex-1">
               <div className="font-medium text-sm text-white">
                 {user?.nama || user?.username || "Admin MN"}
               </div>
-              <div className="text-xs text-gray-400 truncate">
+              <div className="text-xs text-gray-300 truncate">
                 {user?.email || "admin@mnkonveksi.com"}
               </div>
             </div>
           )}
-          
-          <button
-            onClick={handleLogout}
-            className={`
-              p-2 rounded-lg transition-all duration-300 hover:scale-110
-              ${collapsed 
-                ? 'w-full bg-gray-800 text-gray-400 hover:bg-red-900/30 hover:text-red-400' 
-                : 'bg-gray-800 text-gray-400 hover:bg-gradient-to-r hover:from-red-600 hover:to-pink-600 hover:text-white'
-              }
-              shadow-sm
-            `}
-            title="Logout"
-          >
-            <LogOut size={16} />
-          </button>
         </div>
 
         {!collapsed && !mobile && (
           <div className="mt-4 px-3">
-            <div className="text-xs text-gray-500 text-center">
+            <div className="text-xs text-gray-400 text-center">
               © {new Date().getFullYear()} MN Konveksi
             </div>
             <div className="text-xs text-gray-500 text-center mt-1">
