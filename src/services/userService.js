@@ -3,6 +3,268 @@ const API_BASE = "https://be-mn-konveksi.vercel.app/api";
 
 class UserService {
   /**
+   * Get all users (Admin only)
+   */
+  async getAllUsers() {
+    try {
+      const token = localStorage.getItem("mn_token");
+      if (!token) {
+        throw new Error("Silakan login terlebih dahulu");
+      }
+
+      const response = await fetch(`${API_BASE}/admin/users`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const json = await response.json();
+
+      if (!response.ok) {
+        throw new Error(json.message || "Gagal mengambil data pengguna");
+      }
+
+      return {
+        success: true,
+        data: json.data || [],
+      };
+    } catch (error) {
+      console.error("Error fetching users:", error);
+      return {
+        success: false,
+        message: error.message,
+        data: [],
+      };
+    }
+  }
+
+  /**
+   * Get user detail by ID (Admin only)
+   */
+  async getUserDetail(id_user) {
+    try {
+      const token = localStorage.getItem("mn_token");
+      if (!token) {
+        throw new Error("Silakan login terlebih dahulu");
+      }
+
+      const response = await fetch(`${API_BASE}/admin/users/${id_user}`, {
+        method: "GET",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const json = await response.json();
+
+      if (!response.ok) {
+        throw new Error(json.message || "Gagal mengambil detail pengguna");
+      }
+
+      return {
+        success: true,
+        data: json.data,
+      };
+    } catch (error) {
+      console.error("Error fetching user detail:", error);
+      return {
+        success: false,
+        message: error.message,
+        data: null,
+      };
+    }
+  }
+
+  /**
+   * Update user by ID (Admin only)
+   */
+  async updateUser(id_user, data) {
+    try {
+      const token = localStorage.getItem("mn_token");
+      if (!token) {
+        throw new Error("Silakan login terlebih dahulu");
+      }
+
+      // Filter data yang boleh diupdate oleh admin
+      const allowedFields = ["nama", "no_hp", "alamat", "role"];
+      const updateData = {};
+
+      Object.keys(data).forEach((key) => {
+        if (allowedFields.includes(key) && data[key] !== undefined) {
+          updateData[key] = data[key];
+        }
+      });
+
+      // Format nomor HP
+      if (updateData.no_hp) {
+        updateData.no_hp = updateData.no_hp.replace(/[^0-9]/g, "");
+        if (updateData.no_hp.startsWith("0")) {
+          updateData.no_hp = "62" + updateData.no_hp.substring(1);
+        }
+      }
+
+      console.log("Updating user:", { id_user, data: updateData });
+
+      const response = await fetch(`${API_BASE}/users/${id_user}`, {
+        method: "PUT", // atau "PATCH" tergantung backend
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(updateData),
+      });
+
+      let json;
+      const responseText = await response.text();
+
+      try {
+        json = responseText ? JSON.parse(responseText) : {};
+      } catch (parseError) {
+        console.error("Error parsing response:", parseError);
+        throw new Error("Invalid response from server");
+      }
+
+      if (!response.ok) {
+        throw new Error(
+          json.message || `Gagal memperbarui pengguna (${response.status})`
+        );
+      }
+
+      return {
+        success: true,
+        data: json.data,
+        message: json.message || "Pengguna berhasil diperbarui",
+      };
+    } catch (error) {
+      console.error("Error updating user:", error);
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  /**
+   * Create new user (Admin only)
+   */
+  async createUser(data) {
+    try {
+      const token = localStorage.getItem("mn_token");
+      if (!token) {
+        throw new Error("Silakan login terlebih dahulu");
+      }
+
+      const response = await fetch(`${API_BASE}/auth/register`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(data),
+      });
+
+      const json = await response.json();
+
+      if (!response.ok) {
+        throw new Error(json.message || "Gagal membuat pengguna baru");
+      }
+
+      return {
+        success: true,
+        data: json.data,
+        message: "Pengguna berhasil dibuat",
+      };
+    } catch (error) {
+      console.error("Error creating user:", error);
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  /**
+   * Delete user (Admin only)
+   */
+  async deleteUser(id_user) {
+    try {
+      const token = localStorage.getItem("mn_token");
+      if (!token) {
+        throw new Error("Silakan login terlebih dahulu");
+      }
+
+      const response = await fetch(`${API_BASE}/admin/users/${id_user}`, {
+        method: "DELETE",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      });
+
+      const json = await response.json();
+
+      if (!response.ok) {
+        throw new Error(json.message || "Gagal menghapus pengguna");
+      }
+
+      return {
+        success: true,
+        message: json.message || "Pengguna berhasil dihapus",
+      };
+    } catch (error) {
+      console.error("Error deleting user:", error);
+      return {
+        success: false,
+        message: error.message,
+      };
+    }
+  }
+
+  /**
+   * Search users
+   */
+  async searchUsers(query) {
+    try {
+      const token = localStorage.getItem("mn_token");
+      if (!token) {
+        throw new Error("Silakan login terlebih dahulu");
+      }
+
+      const response = await fetch(
+        `${API_BASE}/admin/users/search?q=${encodeURIComponent(query)}`,
+        {
+          method: "GET",
+          headers: {
+            Authorization: `Bearer ${token}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      const json = await response.json();
+
+      if (!response.ok) {
+        throw new Error(json.message || "Gagal mencari pengguna");
+      }
+
+      return {
+        success: true,
+        data: json.data || [],
+      };
+    } catch (error) {
+      console.error("Error searching users:", error);
+      return {
+        success: false,
+        message: error.message,
+        data: [],
+      };
+    }
+  }
+
+  /**
    * Get current user profile
    */
   async getProfile() {
@@ -15,7 +277,7 @@ class UserService {
       const response = await fetch(`${API_BASE}/auth/me`, {
         method: "GET",
         headers: {
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
       });
@@ -28,14 +290,14 @@ class UserService {
 
       return {
         success: true,
-        data: json.data
+        data: json.data,
       };
     } catch (error) {
       console.error("Error fetching profile:", error);
       return {
         success: false,
         message: error.message,
-        data: null
+        data: null,
       };
     }
   }
@@ -47,28 +309,28 @@ class UserService {
     try {
       const token = localStorage.getItem("mn_token");
       const currentUser = this.getCurrentUser();
-      
+
       if (!token || !currentUser) {
         throw new Error("Silakan login terlebih dahulu");
       }
 
       // Get user ID dari current user
       const userId = currentUser.id_user || currentUser.id;
-      
+
       if (!userId) {
         throw new Error("ID pengguna tidak ditemukan");
       }
 
       // Format nomor HP (hapus karakter non-digit dan ubah ke format 62)
       let no_hp = data.no_hp ? data.no_hp.replace(/[^0-9]/g, "") : null;
-      
+
       // Convert to 62 format if starts with 0 or +62
       if (no_hp) {
-        if (no_hp.startsWith('0')) {
-          no_hp = '62' + no_hp.substring(1);
-        } else if (no_hp.startsWith('62')) {
+        if (no_hp.startsWith("0")) {
+          no_hp = "62" + no_hp.substring(1);
+        } else if (no_hp.startsWith("62")) {
           // Already in correct format
-        } else if (no_hp.startsWith('+62')) {
+        } else if (no_hp.startsWith("+62")) {
           no_hp = no_hp.substring(1); // Remove +
         }
       }
@@ -84,34 +346,36 @@ class UserService {
         requestData.role = currentUser.role;
       }
 
-      console.log('Update profile request:', {
+      console.log("Update profile request:", {
         url: `${API_BASE}/users/${userId}`,
-        data: requestData
+        data: requestData,
       });
 
       const response = await fetch(`${API_BASE}/users/${userId}`, {
         method: "PATCH",
         headers: {
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify(requestData),
       });
 
-      console.log('Response status:', response.status);
+      console.log("Response status:", response.status);
 
       let json;
       const responseText = await response.text();
-      
+
       try {
         json = responseText ? JSON.parse(responseText) : {};
       } catch (parseError) {
-        console.error('Error parsing response:', parseError);
-        throw new Error('Invalid response from server');
+        console.error("Error parsing response:", parseError);
+        throw new Error("Invalid response from server");
       }
 
       if (!response.ok) {
-        throw new Error(json.message || `Gagal memperbarui profil (${response.status})`);
+        throw new Error(
+          json.message || `Gagal memperbarui profil (${response.status})`
+        );
       }
 
       // Update localStorage dengan data yang baru
@@ -124,22 +388,24 @@ class UserService {
       return {
         success: true,
         data: json.data,
-        message: json.message || "Profil berhasil diperbarui"
+        message: json.message || "Profil berhasil diperbarui",
       };
     } catch (error) {
       console.error("Error updating profile:", error);
-      
+
       // Check for CORS error
-      if (error.message.includes('Failed to fetch') || 
-          error.message.includes('NetworkError') ||
-          error.message.includes('CORS')) {
-        console.warn('CORS error detected, trying alternative method...');
+      if (
+        error.message.includes("Failed to fetch") ||
+        error.message.includes("NetworkError") ||
+        error.message.includes("CORS")
+      ) {
+        console.warn("CORS error detected, trying alternative method...");
         return await this.updateProfileAlt(data);
       }
-      
+
       return {
         success: false,
-        message: error.message
+        message: error.message,
       };
     }
   }
@@ -151,34 +417,34 @@ class UserService {
     try {
       const token = localStorage.getItem("mn_token");
       const currentUser = this.getCurrentUser();
-      
+
       if (!token || !currentUser) {
         throw new Error("Silakan login terlebih dahulu");
       }
 
       const userId = currentUser.id_user || currentUser.id;
-      
+
       if (!userId) {
         throw new Error("ID pengguna tidak ditemukan");
       }
 
       // Coba endpoint berbeda atau method berbeda
       const endpoints = [
-        `${API_BASE}/user/${userId}`,  // Coba singular 'user'
+        `${API_BASE}/user/${userId}`, // Coba singular 'user'
         `${API_BASE}/users/${userId}`, // Coba plural 'users'
-        `${API_BASE}/profile/update`,  // Coba endpoint umum
+        `${API_BASE}/profile/update`, // Coba endpoint umum
       ];
 
       let lastError;
-      
+
       for (const endpoint of endpoints) {
         try {
           console.log(`Trying endpoint: ${endpoint}`);
-          
+
           const response = await fetch(endpoint, {
             method: "PATCH",
             headers: {
-              "Authorization": `Bearer ${token}`,
+              Authorization: `Bearer ${token}`,
               "Content-Type": "application/json",
             },
             body: JSON.stringify({
@@ -190,7 +456,7 @@ class UserService {
 
           if (response.ok) {
             const json = await response.json();
-            
+
             // Update localStorage
             if (json.data) {
               const updatedUser = { ...currentUser, ...json.data };
@@ -201,7 +467,7 @@ class UserService {
             return {
               success: true,
               data: json.data,
-              message: "Profil berhasil diperbarui (alternative method)"
+              message: "Profil berhasil diperbarui (alternative method)",
             };
           }
         } catch (error) {
@@ -210,14 +476,13 @@ class UserService {
           continue; // Coba endpoint berikutnya
         }
       }
-      
+
       throw lastError || new Error("Semua endpoint gagal");
-      
     } catch (error) {
       console.error("Error in updateProfileAlt:", error);
       return {
         success: false,
-        message: error.message
+        message: error.message,
       };
     }
   }
@@ -243,7 +508,7 @@ class UserService {
       const response = await fetch(`${API_BASE}/auth/change-password`, {
         method: "PATCH",
         headers: {
-          "Authorization": `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
@@ -261,13 +526,13 @@ class UserService {
 
       return {
         success: true,
-        message: "Password berhasil diubah"
+        message: "Password berhasil diubah",
       };
     } catch (error) {
       console.error("Error changing password:", error);
       return {
         success: false,
-        message: error.message
+        message: error.message,
       };
     }
   }
@@ -278,12 +543,12 @@ class UserService {
   async logout() {
     try {
       const token = localStorage.getItem("mn_token");
-      
+
       if (token) {
         await fetch(`${API_BASE}/auth/logout`, {
           method: "POST",
           headers: {
-            "Authorization": `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
           },
         });
@@ -304,7 +569,7 @@ class UserService {
   getCurrentUser() {
     const userStr = localStorage.getItem("mn_user");
     if (!userStr) return null;
-    
+
     try {
       return JSON.parse(userStr);
     } catch (error) {
@@ -327,15 +592,15 @@ class UserService {
    */
   formatPhone(phone) {
     if (!phone) return "-";
-    
+
     // Remove non-digits
     const cleaned = phone.replace(/\D/g, "");
-    
+
     if (cleaned.length >= 10) {
       // Format: 0812-3456-7890
       return cleaned.replace(/(\d{4})(\d{4})(\d{0,4})/, "$1-$2-$3");
     }
-    
+
     return phone;
   }
 
@@ -344,17 +609,17 @@ class UserService {
    */
   formatPhoneForInput(phone) {
     if (!phone) return "";
-    
+
     const cleaned = phone.replace(/\D/g, "");
-    
-    if (cleaned.startsWith('62')) {
+
+    if (cleaned.startsWith("62")) {
       return cleaned;
-    } else if (cleaned.startsWith('0')) {
-      return '62' + cleaned.substring(1);
+    } else if (cleaned.startsWith("0")) {
+      return "62" + cleaned.substring(1);
     } else if (cleaned.length > 0) {
-      return '62' + cleaned;
+      return "62" + cleaned;
     }
-    
+
     return cleaned;
   }
 
