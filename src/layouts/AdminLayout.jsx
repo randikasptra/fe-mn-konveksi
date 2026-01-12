@@ -40,6 +40,7 @@ const AdminLayout = ({ children }) => {
     { name: "Laporan", href: "/admin/laporan", icon: ChartBarIcon },
     { name: "Transaksi", href: "/admin/transactions", icon: CurrencyDollarIcon },
     { name: "Pengaturan", href: "/admin/settings", icon: Cog6ToothIcon },
+    { name: "Pengaturan", href: "/admin/settings", icon: Cog6ToothIcon },
   ];
 
   const handleLogout = () => {

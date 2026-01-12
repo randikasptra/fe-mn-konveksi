@@ -38,7 +38,7 @@ import OrdersAdmin from './pages/admin/OrdersAdmin'
 import ProductsAdmin from './pages/admin/ProductsAdmin'
 import LaporanAdmin from './pages/admin/LaporanAdmin'
 import UsersAdmin from './pages/admin/UsersAdmin'
-
+import SettingsAdmin from './pages/admin/SettingsAdmin'
 /* ================= ERROR PAGES ================= */
 import NotFound from './pages/errors/NotFound'
 import Unauthorized from './pages/errors/Unauthorized'
@@ -394,6 +394,11 @@ export default function App() {
                             path='users'
                             element={<UsersAdmin />}
                         />
+                        <Route
+                            path='settings'
+                            element={<SettingsAdmin />} // Tambah route ini
+                        />
+                        
                     </Route>
 
                     {/* ================= ERROR ROUTES ================= */}
