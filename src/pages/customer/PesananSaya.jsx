@@ -9,9 +9,11 @@ export default function PesananSaya() {
   const [loading, setLoading] = useState(true);
   const [processingId, setProcessingId] = useState(null);
   const [deletingId, setDeletingId] = useState(null);
+  const [cancellingId, setCancellingId] = useState(null);
   const [activeTab, setActiveTab] = useState("all");
   const [error, setError] = useState(null);
   const [deleteModal, setDeleteModal] = useState({ show: false, order: null });
+  const [cancelPaymentModal, setCancelPaymentModal] = useState({ show: false, order: null, transaksi: null });
 
   async function loadOrders() {
     try {
@@ -42,14 +44,14 @@ export default function PesananSaya() {
           loadOrders();
         },
         onError: function() {
-          alert("Pembayaran gagal, silakan coba lagi");
+          showToast('error', 'Pembayaran gagal, silakan coba lagi');
         },
         onClose: function() {
           loadOrders();
         }
       });
     } else {
-      alert("Sistem pembayaran sedang tidak tersedia. Silakan refresh halaman.");
+      showToast('error', 'Sistem pembayaran sedang tidak tersedia. Silakan refresh halaman.');
     }
   }
 
@@ -62,7 +64,6 @@ export default function PesananSaya() {
     }
 
     if (!jenis) {
-      // Analisis jenis pembayaran
       const transaksi = order.transaksi || [];
       const settledTransactions = transaksi.filter(t => t.midtrans_status === "settlement");
       
@@ -77,7 +78,7 @@ export default function PesananSaya() {
     }
     
     if (!jenis) {
-      alert("Pesanan ini tidak memerlukan pembayaran");
+      showToast('error', 'Pesanan ini tidak memerlukan pembayaran');
       return;
     }
 
@@ -90,23 +91,49 @@ export default function PesananSaya() {
       });
       openSnap(snapToken);
     } catch (error) {
-      alert(error.message);
+      showToast('error', error.message);
     } finally {
       setProcessingId(null);
     }
   }
 
-  // Fungsi untuk membuka modal konfirmasi hapus
+  // Helper untuk toast notification
+  const showToast = (type, message) => {
+    const notification = document.createElement('div');
+    notification.className = 'fixed top-6 right-6 z-50 animate-slide-in';
+    
+    const colors = {
+      success: 'from-green-600 to-emerald-600',
+      error: 'from-red-600 to-pink-600'
+    };
+    
+    const icons = {
+      success: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/>',
+      error: '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"/>'
+    };
+    
+    notification.innerHTML = `
+      <div class="bg-gradient-to-r ${colors[type]} text-white px-6 py-4 rounded-xl shadow-2xl flex items-center gap-3">
+        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          ${icons[type]}
+        </svg>
+        <span class="font-medium">${message}</span>
+      </div>
+    `;
+    
+    document.body.appendChild(notification);
+    setTimeout(() => notification.remove(), 3000);
+  };
+
+  // Modal handlers untuk delete
   const openDeleteModal = (order) => {
     setDeleteModal({ show: true, order });
   };
 
-  // Fungsi untuk menutup modal
   const closeDeleteModal = () => {
     setDeleteModal({ show: false, order: null });
   };
 
-  // Fungsi untuk menghapus pesanan
   const handleDeleteOrder = async () => {
     if (!deleteModal.order) return;
 
@@ -115,30 +142,50 @@ export default function PesananSaya() {
       
       await OrderService.deleteOrder(deleteModal.order.id_pesanan);
       
-      // Refresh daftar pesanan
-      await loadOrders();
-      
-      // Tampilkan pesan sukses
-      alert("Pesanan berhasil dihapus");
-      
-      // Tutup modal
       closeDeleteModal();
+      await loadOrders();
+      showToast('success', 'Pesanan berhasil dihapus');
       
     } catch (error) {
-      alert(error.message);
+      showToast('error', error.message);
     } finally {
       setDeletingId(null);
     }
   };
 
-  // FUNGSI DIPERBAIKI: Mengecek apakah pesanan bisa dihapus berdasarkan backend
+  // Modal handlers untuk cancel payment
+  const openCancelPaymentModal = (order, transaksi) => {
+    setCancelPaymentModal({ show: true, order, transaksi });
+  };
+
+  const closeCancelPaymentModal = () => {
+    setCancelPaymentModal({ show: false, order: null, transaksi: null });
+  };
+
+  const handleCancelPayment = async () => {
+    if (!cancelPaymentModal.transaksi) return;
+
+    try {
+      setCancellingId(cancelPaymentModal.order.id_pesanan);
+      
+      await OrderService.cancelPayment(cancelPaymentModal.transaksi.id_transaksi);
+      
+      closeCancelPaymentModal();
+      await loadOrders();
+      showToast('success', 'Pembayaran berhasil dibatalkan');
+      
+    } catch (error) {
+      showToast('error', error.message);
+    } finally {
+      setCancellingId(null);
+    }
+  };
+
   const canDeleteOrder = (order) => {
-    // 1. Cek status pesanan - tidak boleh DIPROSES atau SELESAI
     if (["DIPROSES", "SELESAI"].includes(order.status_pesanan)) {
       return false;
     }
 
-    // 2. Cek transaksi settlement - tidak boleh ada settlement
     const hasSettlement = order.transaksi?.some(
       (t) => t.midtrans_status === "settlement"
     );
@@ -146,17 +193,12 @@ export default function PesananSaya() {
       return false;
     }
 
-    // 3. Cek status transaksi lainnya
-    // Hanya bisa dihapus jika semua transaksi memiliki status: pending, expire, cancel, deny
-    // atau tidak ada transaksi sama sekali
     const validStatuses = ["pending", "expire", "cancel", "deny"];
     
-    // Jika tidak ada transaksi, bisa dihapus
     if (!order.transaksi || order.transaksi.length === 0) {
       return true;
     }
     
-    // Jika ada transaksi, cek semua status valid
     const hasInvalidPayment = order.transaksi?.some(
       (t) => t.midtrans_status && !validStatuses.includes(t.midtrans_status)
     );
@@ -205,12 +247,10 @@ export default function PesananSaya() {
     );
   }
 
-  // Helper function untuk statistik
   const getSettledTransaksi = (order) => {
     return order.transaksi?.filter((t) => t.midtrans_status === "settlement") || [];
   };
 
-  // Hitung statistik - DIPERBAIKI: ada kesalahan sintaks di bagian processing
   const stats = {
     total: orders.length,
     waiting: orders.filter(order => {
@@ -227,7 +267,6 @@ export default function PesananSaya() {
     completed: orders.filter(order => order.status_pesanan === "SELESAI").length
   };
 
-  // Filter orders
   const filteredOrders = orders.filter(order => {
     if (activeTab === "all") return true;
     if (activeTab === "pending") {
@@ -376,15 +415,17 @@ export default function PesananSaya() {
                 order={order}
                 onPay={handlePay}
                 onDelete={openDeleteModal}
+                onCancelPayment={openCancelPaymentModal}
                 canDelete={canDeleteOrder(order)}
                 processingId={processingId}
-                deletingId={deletingId} // Ditambahkan prop ini
+                deletingId={deletingId}
+                cancellingId={cancellingId}
               />
             ))}
           </div>
         )}
 
-        {/* Help Section - DIPERBAIKI: Informasi lebih akurat */}
+        {/* Help Section */}
         <div className="mt-12 bg-gradient-to-r from-indigo-50 to-purple-50 rounded-2xl p-8 border border-indigo-100">
           <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
             <div>
@@ -398,12 +439,6 @@ export default function PesananSaya() {
                   <li>Bayar DP 50% untuk memulai produksi</li>
                   <li>Pelunasan dapat dilakukan kapan saja sebelum pesanan selesai</li>
                   <li>Produksi dimulai setelah DP diterima</li>
-                </ol>
-                <p className="mt-3 mb-1">🗑️ Hapus Pesanan:</p>
-                <ol className="list-decimal pl-5 space-y-1">
-                  <li>Pesanan <strong>tidak dapat dihapus</strong> jika status sudah "Diproses" atau "Selesai"</li>
-                  <li>Pesanan <strong>tidak dapat dihapus</strong> jika sudah ada pembayaran berhasil</li>
-                  <li>Pesanan <strong>hanya dapat dihapus</strong> jika belum dibayar atau pembayaran gagal/kadaluarsa/ditolak</li>
                 </ol>
               </div>
             </div>
@@ -432,7 +467,7 @@ export default function PesananSaya() {
         </div>
       </div>
 
-      {/* Modal Konfirmasi Hapus - DIPERBAIKI: Loading spinner lebih baik */}
+      {/* Modal Konfirmasi Hapus */}
       {deleteModal.show && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
           <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
@@ -490,6 +525,77 @@ export default function PesananSaya() {
                     <>
                       <Icon icon="mdi:delete" />
                       Hapus Pesanan
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal Konfirmasi Cancel Payment */}
+      {cancelPaymentModal.show && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-2xl shadow-xl max-w-md w-full">
+            <div className="p-6">
+              <div className="flex items-center gap-3 mb-4">
+                <div className="w-12 h-12 bg-orange-100 rounded-xl flex items-center justify-center">
+                  <Icon icon="mdi:cash-remove" className="text-orange-600 text-2xl" />
+                </div>
+                <div>
+                  <h3 className="text-xl font-bold text-gray-900">Batalkan Pembayaran</h3>
+                  <p className="text-gray-600">Konfirmasi pembatalan transaksi</p>
+                </div>
+              </div>
+              
+              <div className="mb-6">
+                <p className="text-gray-700 mb-2">
+                  Apakah Anda yakin ingin membatalkan pembayaran ini?
+                </p>
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <p className="font-medium text-gray-900">
+                    Pesanan #{cancelPaymentModal.order?.id_pesanan}
+                  </p>
+                  <p className="text-gray-600">{cancelPaymentModal.order?.produk?.nama_produk}</p>
+                  <p className="text-lg font-bold text-gray-900 mt-1">
+                    Rp {cancelPaymentModal.transaksi?.nominal?.toLocaleString()}
+                  </p>
+                  <div className="mt-2 text-sm text-gray-500">
+                    <p>Jenis: {cancelPaymentModal.transaksi?.jenis_pembayaran}</p>
+                    <p>Status: Pending</p>
+                  </div>
+                </div>
+                <div className="mt-3 p-3 bg-orange-50 rounded-lg border border-orange-100">
+                  <p className="text-sm text-orange-700 flex items-start gap-2">
+                    <Icon icon="mdi:information-outline" className="flex-shrink-0 mt-0.5" />
+                    <span>Setelah dibatalkan, Anda dapat membuat pembayaran baru untuk pesanan ini.</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-3">
+                <button
+                  onClick={closeCancelPaymentModal}
+                  disabled={cancellingId}
+                  className="px-5 py-2.5 bg-white text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors border border-gray-300 disabled:opacity-50"
+                >
+                  Batal
+                </button>
+                <button
+                  onClick={handleCancelPayment}
+                  disabled={cancellingId}
+                  className="px-5 py-2.5 bg-gradient-to-r from-orange-600 to-red-600 text-white font-medium rounded-xl hover:from-orange-700 hover:to-red-700 transition-colors flex items-center gap-2 disabled:opacity-50"
+                >
+                  {cancellingId ? (
+                    <>
+                      <div className="inline-block animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                      Membatalkan...
+                    </>
+                  ) : (
+                    <>
+                      <Icon icon="mdi:close-circle" />
+                      Batalkan Pembayaran
                     </>
                   )}
                 </button>

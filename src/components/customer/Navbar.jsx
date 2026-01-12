@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { Icon } from "@iconify/react";
-import { orderService } from "../../services/api"; // ✅ IMPORT DARI UNIFIED API
-import Logo from "../../assets/LOGO-MN.png"; // ✅ IMPORT LOGO
+import { orderService } from "../../services/api"; // ✅ IMPORT DARI API
+import Logo from "../../assets/LOGO-MN.png";
 
 export default function CustomerNavbar() {
   const navigate = useNavigate();
@@ -65,18 +65,47 @@ export default function CustomerNavbar() {
     };
   }, []);
 
-  /* ================= FETCH PENDING ORDERS ================= */
+  /* ================= FETCH PENDING ORDERS - ✅ FIXED ================= */
   async function fetchPendingOrders() {
     try {
-      // ✅ GUNAKAN orderService.getOrders() DARI UNIFIED API
-      const json = await orderService.getOrders();
-      const pending = (json.data || []).filter((o) =>
-        ["MENUNGGU_DP", "MENUNGGU_PELUNASAN"].includes(o.status_pesanan)
-      );
+      console.log('Fetching pending orders...');
+      
+      // ✅ Gunakan getMyOrders dari API
+      const response = await orderService.getMyOrders();
+      
+      console.log('Pending orders response:', response);
+      
+      // Extract orders data dari berbagai format response
+      let ordersData = [];
+      
+      if (response && response.success && Array.isArray(response.data)) {
+        ordersData = response.data;
+      } else if (Array.isArray(response)) {
+        ordersData = response;
+      } else if (response && Array.isArray(response.data)) {
+        ordersData = response.data;
+      } else if (response && response.orders && Array.isArray(response.orders)) {
+        ordersData = response.orders;
+      }
+      
+      console.log('Orders data:', ordersData);
+      
+      // Filter pending orders
+      const pending = ordersData.filter((o) => {
+        const status = o.status_pesanan || "";
+        return ["MENUNGGU_PEMBAYARAN", "MENUNGGU_DP", "MENUNGGU_PELUNASAN"].includes(status);
+      });
+      
+      console.log('Pending orders:', pending);
+      
       setPendingOrders(pending);
       setCartCount(pending.length);
+      
     } catch (err) {
       console.error("Error fetching orders:", err);
+      // Jangan set error state, biarkan cart kosong saja
+      setPendingOrders([]);
+      setCartCount(0);
     }
   }
 
@@ -199,7 +228,7 @@ export default function CustomerNavbar() {
         <div className="container mx-auto px-4">
           {/* TOP BAR */}
           <div className="flex items-center justify-between h-20">
-            {/* LOGO - ✅ MENGGUNAKAN LOGO.PNG */}
+            {/* LOGO */}
             <Link to="/" className="flex items-center gap-3 group">
               <div className="relative">
                 <img
@@ -342,7 +371,8 @@ export default function CustomerNavbar() {
                                   </div>
                                   <span
                                     className={`px-3 py-1 rounded-full text-xs font-medium ${
-                                      order.status_pesanan === "MENUNGGU_DP"
+                                      order.status_pesanan === "MENUNGGU_DP" ||
+                                      order.status_pesanan === "MENUNGGU_PEMBAYARAN"
                                         ? "bg-amber-100 text-amber-800"
                                         : "bg-blue-100 text-blue-800"
                                     }`}
@@ -357,9 +387,7 @@ export default function CustomerNavbar() {
                                   </span>
                                   <button
                                     onClick={() => {
-                                      navigate(
-                                        `/pesanan-saya/${order.id_pesanan}`
-                                      );
+                                      navigate("/pesanan-saya");
                                       setCartOpen(false);
                                     }}
                                     className="text-sm text-indigo-600 hover:text-indigo-700 font-medium"
