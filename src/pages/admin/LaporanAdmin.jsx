@@ -1,221 +1,276 @@
-import React, { useMemo, useState } from "react";
+import React, { useState } from 'react'
+import {
+    Calendar,
+    Filter,
+    FileText,
+    FileSpreadsheet,
+    Loader2,
+} from 'lucide-react'
+import laporanService from '../../services/laporanService'
 
-/* ===================== Helpers ===================== */
-const formatIDR = (v) =>
-  new Intl.NumberFormat("id-ID", {
-    style: "currency",
-    currency: "IDR",
-  }).format(v || 0);
+// =====================
+// UTIL
+// =====================
+const rupiah = (n) =>
+    new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0,
+    }).format(n || 0)
 
-/* ===================== Main Page ===================== */
-export default function LaporanAdmin() {
-  /* ===== STATE FILTER ===== */
-  const [startDate, setStartDate] = useState("");
-  const [endDate, setEndDate] = useState("");
-  const [status, setStatus] = useState("Semua");
+const LaporanAdmin = () => {
+    const [from, setFrom] = useState('')
+    const [to, setTo] = useState('')
+    const [status, setStatus] = useState('')
 
-  /* ===== MOCK DATA (nanti bisa diganti fetch API) ===== */
-  const reports = [
-    {
-      id: 1,
-      date: "2025-12-08",
-      code: "ORD-20251208-001",
-      customer: "Budi Setiawan",
-      product: "Seragam Kantor",
-      total: 2500000,
-      status: "Selesai",
-      payment: "Transfer Bank",
-    },
-    {
-      id: 2,
-      date: "2025-12-07",
-      code: "ORD-20251207-004",
-      customer: "Sari Dewi",
-      product: "Jaket Komunitas",
-      total: 1750000,
-      status: "Selesai",
-      payment: "Virtual Account",
-    },
-    {
-      id: 3,
-      date: "2025-12-06",
-      code: "ORD-20251206-010",
-      customer: "Rama Pratama",
-      product: "PDL Perusahaan",
-      total: 4200000,
-      status: "Dibatalkan",
-      payment: "Transfer Bank",
-    },
-  ];
+    const [loading, setLoading] = useState(false)
+    const [error, setError] = useState('')
 
-  /* ===== FILTER DATA ===== */
-  const filtered = useMemo(() => {
-    return reports.filter((r) => {
-      if (status !== "Semua" && r.status !== status) return false;
-      if (startDate && r.date < startDate) return false;
-      if (endDate && r.date > endDate) return false;
-      return true;
-    });
-  }, [reports, startDate, endDate, status]);
+    const [summary, setSummary] = useState(null)
+    const [list, setList] = useState([])
 
-  /* ===== STATS ===== */
-  const stats = useMemo(() => {
-    const total = filtered.length;
-    const selesai = filtered.filter((r) => r.status === "Selesai").length;
-    const batal = filtered.filter((r) => r.status === "Dibatalkan").length;
-    const pendapatan = filtered
-      .filter((r) => r.status === "Selesai")
-      .reduce((sum, r) => sum + r.total, 0);
+    // =====================
+    // LOAD JSON (TAMPILAN)
+    // =====================
+    const loadLaporan = async () => {
+        setLoading(true)
+        setError('')
 
-    return { total, selesai, batal, pendapatan };
-  }, [filtered]);
+        const res = await laporanService.getLaporanPesananJson({
+            from,
+            to,
+            status,
+        })
 
-  /* ===== HANDLER ===== */
-  function handleExport(type) {
-    alert(`Export ${type} (mock)`);
-  }
+        if (!res.success) {
+            setError(res.message)
+            setLoading(false)
+            return
+        }
 
-  /* ===================== RENDER ===================== */
-  return (
-    <div className="space-y-6">
-      {/* ================= Filter ================= */}
-      <div className="bg-white border rounded-lg shadow-sm p-5">
-        <h3 className="text-sm font-semibold text-gray-700 mb-4">
-          Filter Periode Laporan
-        </h3>
+        setSummary(res.data.summary)
+        setList(res.data.data)
+        setLoading(false)
+    }
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-          <input
-            type="date"
-            value={startDate}
-            onChange={(e) => setStartDate(e.target.value)}
-            className="border rounded-md px-3 py-2 text-sm"
-          />
+    // =====================
+    // EXPORT PDF / EXCEL
+    // =====================
+    const exportLaporan = async (format) => {
+        if (!from || !to) {
+            alert('Pilih tanggal terlebih dahulu')
+            return
+        }
 
-          <input
-            type="date"
-            value={endDate}
-            onChange={(e) => setEndDate(e.target.value)}
-            className="border rounded-md px-3 py-2 text-sm"
-          />
+        const res = await laporanService.cetakLaporanPesanan({
+            from,
+            to,
+            status, // 🔥 WAJIB DIKIRIM
+            format,
+        })
 
-          <select
-            value={status}
-            onChange={(e) => setStatus(e.target.value)}
-            className="border rounded-md px-3 py-2 text-sm"
-          >
-            <option>Semua</option>
-            <option>Selesai</option>
-            <option>Dibatalkan</option>
-          </select>
+        if (!res.success) {
+            alert(res.message)
+            return
+        }
 
-          <button className="bg-blue-600 hover:bg-blue-700 text-white rounded-md px-4 py-2 text-sm">
-            Tampilkan Laporan
-          </button>
-        </div>
-      </div>
+        laporanService.downloadFile(
+            res.data,
+            `laporan-pesanan-${from}-${to}.${format === 'pdf' ? 'pdf' : 'xlsx'}`
+        )
+    }
 
-      {/* ================= Statistik ================= */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard title="Total Pesanan" value={stats.total} />
-        <StatCard
-          title="Pesanan Selesai"
-          value={stats.selesai}
-          color="text-green-600"
-        />
-        <StatCard
-          title="Pesanan Dibatalkan"
-          value={stats.batal}
-          color="text-red-500"
-        />
-        <StatCard
-          title="Total Pendapatan"
-          value={formatIDR(stats.pendapatan)}
-          color="text-green-600"
-        />
-      </div>
+    return (
+        <div className='p-6 space-y-8'>
+            {/* HEADER */}
+            <div className='flex items-center gap-3'>
+                <FileText className='w-7 h-7 text-blue-600' />
+                <h1 className='text-2xl font-bold'>Laporan Pesanan</h1>
+            </div>
 
-      {/* ================= Table ================= */}
-      <div className="bg-white border rounded-lg shadow-sm">
-        <div className="flex items-center justify-between px-5 py-4 border-b">
-          <h3 className="text-sm font-semibold text-gray-700">
-            Detail Laporan Transaksi
-          </h3>
+            {/* FILTER */}
+            <div className='bg-white border rounded-xl p-4 grid md:grid-cols-5 gap-4'>
+                <div className='flex items-center gap-2'>
+                    <Calendar className='w-4 h-4 text-gray-500' />
+                    <input
+                        type='date'
+                        value={from}
+                        onChange={(e) => setFrom(e.target.value)}
+                        className='border rounded px-2 py-1 w-full'
+                    />
+                </div>
 
-          <div className="flex gap-2">
-            <button
-              onClick={() => handleExport("PDF")}
-              className="border rounded-md px-3 py-1 text-xs hover:bg-gray-50"
-            >
-              Export PDF
-            </button>
-            <button
-              onClick={() => handleExport("Excel")}
-              className="border rounded-md px-3 py-1 text-xs hover:bg-gray-50"
-            >
-              Export Excel
-            </button>
-          </div>
-        </div>
+                <div className='flex items-center gap-2'>
+                    <Calendar className='w-4 h-4 text-gray-500' />
+                    <input
+                        type='date'
+                        value={to}
+                        onChange={(e) => setTo(e.target.value)}
+                        className='border rounded px-2 py-1 w-full'
+                    />
+                </div>
 
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-gray-50 text-gray-600 border-b">
-              <tr>
-                <th className="px-5 py-3 text-left">Tanggal</th>
-                <th className="text-left">Kode Pesanan</th>
-                <th className="text-left">Pelanggan</th>
-                <th className="text-left">Produk</th>
-                <th className="text-left">Total</th>
-                <th className="text-left">Status</th>
-                <th className="text-left">Metode Bayar</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {filtered.map((r) => (
-                <tr key={r.id} className="border-b last:border-0">
-                  <td className="px-5 py-3">{r.date}</td>
-                  <td>{r.code}</td>
-                  <td>{r.customer}</td>
-                  <td>{r.product}</td>
-                  <td>{formatIDR(r.total)}</td>
-                  <td>
-                    <span
-                      className={`text-xs px-2 py-0.5 rounded-full ${
-                        r.status === "Selesai"
-                          ? "bg-green-100 text-green-700"
-                          : "bg-red-100 text-red-600"
-                      }`}
+                <div className='flex items-center gap-2'>
+                    <Filter className='w-4 h-4 text-gray-500' />
+                    <select
+                        value={status}
+                        onChange={(e) => setStatus(e.target.value)}
+                        className='border rounded px-2 py-1 w-full'
                     >
-                      {r.status}
-                    </span>
-                  </td>
-                  <td>{r.payment}</td>
-                </tr>
-              ))}
+                        <option value=''>Semua Status</option>
+                        <option value='MENUNGGU_PEMBAYARAN'>
+                            Menunggu Pembayaran
+                        </option>
+                        <option value='DIPROSES'>Diproses</option>
+                        <option value='SELESAI'>Selesai</option>
+                        <option value='DIBATALKAN'>Dibatalkan</option>
+                    </select>
+                </div>
 
-              {filtered.length === 0 && (
-                <tr>
-                  <td colSpan={7} className="text-center py-6 text-gray-500">
-                    Tidak ada data laporan
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
+                <button
+                    onClick={loadLaporan}
+                    disabled={loading}
+                    className='bg-blue-600 hover:bg-blue-700 text-white rounded px-4 py-2 flex items-center justify-center gap-2'
+                >
+                    {loading ? (
+                        <Loader2 className='w-4 h-4 animate-spin' />
+                    ) : (
+                        'Tampilkan'
+                    )}
+                </button>
+
+                <div className='flex gap-2'>
+                    <button
+                        onClick={() => exportLaporan('pdf')}
+                        className='bg-red-600 hover:bg-red-700 text-white rounded px-3 py-2 flex items-center gap-1'
+                    >
+                        <FileText className='w-4 h-4' />
+                        PDF
+                    </button>
+
+                    <button
+                        onClick={() => exportLaporan('excel')}
+                        className='bg-green-600 hover:bg-green-700 text-white rounded px-3 py-2 flex items-center gap-1'
+                    >
+                        <FileSpreadsheet className='w-4 h-4' />
+                        Excel
+                    </button>
+                </div>
+            </div>
+
+            {/* ERROR */}
+            {error && <p className='text-red-600'>{error}</p>}
+
+            {/* SUMMARY */}
+            {summary && (
+                <div className='grid md:grid-cols-5 gap-4'>
+                    <SummaryCard
+                        title='Total Pesanan'
+                        value={summary.total_pesanan}
+                    />
+                    <SummaryCard
+                        title='Transaksi'
+                        value={summary.total_transaksi}
+                    />
+                    <SummaryCard
+                        title='Nilai Pesanan'
+                        value={rupiah(summary.total_nilai_pesanan)}
+                    />
+                    <SummaryCard
+                        title='Pendapatan'
+                        value={rupiah(summary.total_pendapatan)}
+                    />
+                    <SummaryCard
+                        title='Sisa Tagihan'
+                        value={rupiah(summary.total_sisa_tagihan)}
+                    />
+                </div>
+            )}
+
+            {/* TABLE */}
+            {list.length > 0 && (
+                <div className='overflow-auto bg-white border rounded-xl'>
+                    <table className='w-full text-sm'>
+                        <thead className='bg-gray-100'>
+                            <tr>
+                                <Th>No</Th>
+                                <Th>Customer</Th>
+                                <Th>Produk</Th>
+                                <Th>Qty</Th>
+                                <Th>Total</Th>
+                                <Th>Pembayaran</Th>
+                                <Th>Status</Th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {list.map((item, i) => {
+                                let bayar = 0
+                                if (item.pembayaran.jenis === 'DP')
+                                    bayar = item.total / 2
+                                if (item.pembayaran.jenis === 'FULL')
+                                    bayar = item.pembayaran.jumlah
+
+                                return (
+                                    <tr
+                                        key={i}
+                                        className='border-t'
+                                    >
+                                        <Td>{i + 1}</Td>
+                                        <Td>{item.customer}</Td>
+                                        <Td>{item.produk}</Td>
+                                        <Td>{item.qty}</Td>
+                                        <Td>{rupiah(item.total)}</Td>
+                                        <Td>
+                                            {item.pembayaran.jenis} –{' '}
+                                            {rupiah(bayar)}
+                                            <br />
+                                            <span className='text-xs text-gray-500'>
+                                                {item.pembayaran.status}
+                                            </span>
+                                        </Td>
+                                        <Td>
+                                            <StatusBadge status={item.status} />
+                                        </Td>
+                                    </tr>
+                                )
+                            })}
+                        </tbody>
+                    </table>
+                </div>
+            )}
         </div>
-      </div>
-    </div>
-  );
+    )
 }
 
-/* ===================== Components ===================== */
-function StatCard({ title, value, color = "text-gray-900" }) {
-  return (
-    <div className="bg-white border rounded-lg p-4 shadow-sm">
-      <div className="text-xs text-gray-500">{title}</div>
-      <div className={`text-xl font-semibold mt-2 ${color}`}>{value}</div>
+// =====================
+// KOMPONEN KECIL
+// =====================
+const SummaryCard = ({ title, value }) => (
+    <div className='bg-white border rounded-xl p-4'>
+        <p className='text-sm text-gray-500'>{title}</p>
+        <p className='text-lg font-bold'>{value}</p>
     </div>
-  );
+)
+
+const Th = ({ children }) => (
+    <th className='px-3 py-2 text-left border-b'>{children}</th>
+)
+
+const Td = ({ children }) => <td className='px-3 py-2 border-b'>{children}</td>
+
+const StatusBadge = ({ status }) => {
+    const map = {
+        MENUNGGU_PEMBAYARAN: 'bg-yellow-100 text-yellow-700',
+        DIPROSES: 'bg-blue-100 text-blue-700',
+        SELESAI: 'bg-green-100 text-green-700',
+        DIBATALKAN: 'bg-red-100 text-red-700',
+    }
+
+    return (
+        <span className={`px-2 py-1 rounded text-xs ${map[status]}`}>
+            {status}
+        </span>
+    )
 }
+
+export default LaporanAdmin

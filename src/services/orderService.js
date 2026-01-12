@@ -98,18 +98,16 @@ const OrderService = {
   // ================= ADMIN: UPDATE ORDER STATUS =================
   async updateOrderStatus(id_pesanan, status_pesanan, token) {
     try {
-      if (!token) {
-        return {
-          success: false,
-          error: "Token tidak ditemukan. Silakan login kembali.",
-        };
-      }
-
-      const response = await apiOrderService.updateOrderStatus(
-        id_pesanan,
-        { status_pesanan },
-        token
-      );
+      const backendStatus = this.mapStatusToBackend(status_pesanan);
+      
+      const response = await fetch(`https://be-mn-konveksi.vercel.app/api/pesanan/${id_pesanan}/status`, {
+        method: "PATCH",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status_pesanan: backendStatus }),
+      });
 
       console.log("OrderService.updateOrderStatus response:", response);
 
