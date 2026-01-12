@@ -175,10 +175,10 @@ export const produkService = {
 
 // ============= ORDER SERVICE =============
 export const orderService = {
-  // GET USER'S ORDERS - Sesuai dokumentasi API
+  // ✅ GET USER'S ORDERS - Customer only
   getMyOrders: async () => {
     try {
-      // Endpoint: GET /api/pesanan/me - Ambil pesanan milik user
+      // Endpoint: GET /api/pesanan/me
       const response = await api.get("/pesanan/me");
       return response.data;
     } catch (error) {
@@ -187,11 +187,11 @@ export const orderService = {
     }
   },
   
-  // GET ALL ORDERS (ADMIN ONLY) - Sesuai dokumentasi API  
+  // ✅ GET ALL ORDERS (ADMIN ONLY) - FIXED!
   getAllOrders: async () => {
     try {
-      // Endpoint: GET /api/pesanan/all - Ambil seluruh pesanan (Admin)
-      const response = await api.get("/pesanan/all");
+      // Endpoint: GET /api/pesanan (admin with auth + requireAdmin middleware)
+      const response = await api.get("/pesanan");
       return response.data;
     } catch (error) {
       console.error("Error in getAllOrders:", error);
@@ -199,10 +199,10 @@ export const orderService = {
     }
   },
   
-  // CREATE ORDER - Sesuai dokumentasi API
+  // ✅ CREATE ORDER
   createOrder: async (data) => {
     try {
-      // Endpoint: POST /api/pesanan - Buat pesanan baru
+      // Endpoint: POST /api/pesanan
       const response = await api.post("/pesanan", data);
       return response.data;
     } catch (error) {
@@ -211,10 +211,10 @@ export const orderService = {
     }
   },
   
-  // GET ORDER DETAIL - Sesuai dokumentasi API
+  // ✅ GET ORDER DETAIL
   getOrderDetail: async (id) => {
     try {
-      // Endpoint: GET /api/pesanan/{id} - Ambil detail pesanan
+      // Endpoint: GET /api/pesanan/{id}
       const response = await api.get(`/pesanan/${id}`);
       return response.data;
     } catch (error) {
@@ -223,12 +223,12 @@ export const orderService = {
     }
   },
   
-  // DELETE ORDER - Sesuai dokumentasi API
+  // ✅ DELETE ORDER - Updated to support both customer & admin
   deleteOrder: async (id) => {
     try {
       console.log('Calling DELETE /pesanan/' + id);
       
-      // Endpoint: DELETE /api/pesanan/{id} - Hapus pesanan
+      // Endpoint: DELETE /api/pesanan/{id}
       const response = await api.delete(`/pesanan/${id}`);
       
       console.log('Delete response:', response);
@@ -239,11 +239,11 @@ export const orderService = {
     }
   },
   
-  // UPDATE ORDER STATUS (ADMIN) - Sesuai dokumentasi API
+  // ✅ UPDATE ORDER STATUS (ADMIN) - FIXED!
   updateOrderStatus: async (id, data) => {
     try {
-      // Endpoint: PATCH /api/pesanan/{id}/status - Update status pesanan
-      const response = await api.patch(`/pesanan/${id}/status`, data);
+      // Endpoint: PUT /api/pesanan/{id}/status (sesuai backend: router.put("/:id/status", ...))
+      const response = await api.put(`/pesanan/${id}/status`, data);
       return response.data;
     } catch (error) {
       console.error("Error in updateOrderStatus:", error);
@@ -251,10 +251,10 @@ export const orderService = {
     }
   },
   
-  // GET USER SUMMARY - Sesuai dokumentasi API
+  // ✅ GET USER SUMMARY
   getUserSummary: async () => {
     try {
-      // Endpoint: GET /api/pesanan/me/summary - Ringkasan pesanan customer
+      // Endpoint: GET /api/pesanan/me/summary
       const response = await api.get("/pesanan/me/summary");
       return response.data;
     } catch (error) {
@@ -263,10 +263,10 @@ export const orderService = {
     }
   },
   
-  // GET ADMIN SUMMARY - Sesuai dokumentasi API
+  // ✅ GET ADMIN SUMMARY
   getAdminSummary: async () => {
     try {
-      // Endpoint: GET /api/pesanan/admin/summary - Ringkasan pesanan admin
+      // Endpoint: GET /api/pesanan/admin/summary
       const response = await api.get("/pesanan/admin/summary");
       return response.data;
     } catch (error) {
@@ -290,7 +290,7 @@ export const paymentService = {
   
   cancelPayment: async (id_transaksi) => {
     try {
-      // Endpoint: DELETE /api/transaksi/{id} - Batalkan pembayaran
+      // Endpoint: DELETE /api/transaksi/{id}
       const response = await api.delete(`/transaksi/${id_transaksi}`);
       return response.data;
     } catch (error) {
