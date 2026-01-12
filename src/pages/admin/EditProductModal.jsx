@@ -1,5 +1,20 @@
 import React, { useEffect, useState } from 'react'
-import { X, Package, ImagePlus, Loader2, Save } from 'lucide-react'
+import {
+    X,
+    Package,
+    ImagePlus,
+    Loader2,
+    Save,
+    Tag,
+    DollarSign,
+    FileText,
+    Layers,
+    Sparkles,
+    Upload,
+    CheckCircle,
+    RefreshCw,
+    Image as ImageIcon,
+} from 'lucide-react'
 import { toast } from 'react-toastify'
 
 export default function EditProductModal({
@@ -10,6 +25,7 @@ export default function EditProductModal({
 }) {
     const token = localStorage.getItem('mn_token')
     const [loading, setLoading] = useState(false)
+    const [uploadProgress, setUploadProgress] = useState(0)
 
     const [form, setForm] = useState({
         nama_produk: '',
@@ -19,6 +35,7 @@ export default function EditProductModal({
     })
 
     const [foto, setFoto] = useState(null)
+    const [preview, setPreview] = useState(null)
 
     useEffect(() => {
         if (product) {
@@ -29,10 +46,34 @@ export default function EditProductModal({
                 deskripsi: product.deskripsi || '',
             })
             setFoto(null)
+            setPreview(product.foto || null)
+            setUploadProgress(0)
         }
     }, [product])
 
     if (!open || !product) return null
+
+    const handleFileChange = (e) => {
+        const file = e.target.files[0]
+        if (file) {
+            setFoto(file)
+            const reader = new FileReader()
+            reader.onloadend = () => {
+                setPreview(reader.result)
+            }
+            reader.readAsDataURL(file)
+
+            // Simulate upload progress
+            let progress = 0
+            const interval = setInterval(() => {
+                progress += 10
+                setUploadProgress(progress)
+                if (progress >= 100) {
+                    clearInterval(interval)
+                }
+            }, 50)
+        }
+    }
 
     async function handleSubmit(e) {
         e.preventDefault()
@@ -67,134 +108,300 @@ export default function EditProductModal({
             toast.error(err.message || 'Gagal memperbarui produk')
         } finally {
             setLoading(false)
+            setUploadProgress(0)
         }
     }
 
     return (
-        <div className='fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center px-4'>
-            <div className='bg-white w-full max-w-lg rounded-2xl shadow-xl overflow-hidden'>
-                {/* HEADER */}
-                <div className='flex items-center justify-between px-6 py-4 border-b'>
-                    <h2 className='text-lg font-semibold text-gray-900 flex items-center gap-2'>
-                        <Package className='w-5 h-5 text-indigo-600' />
-                        Edit Produk
-                    </h2>
+        <div className='fixed inset-0 z-50 flex items-center justify-center px-4 overflow-y-auto py-6'>
+            {/* BACKDROP */}
+            <div
+                className='fixed inset-0 bg-gradient-to-br from-black/60 to-black/40 backdrop-blur-md'
+                onClick={onClose}
+            />
 
-                    <button
-                        onClick={onClose}
-                        className='p-2 rounded-lg hover:bg-gray-100 transition'
-                    >
-                        <X className='w-4 h-4' />
-                    </button>
+            {/* MODAL */}
+            <div className='relative w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden transform transition-all duration-300 scale-100 my-auto'>
+                {/* HEADER */}
+                <div className='bg-gradient-to-r from-amber-600 to-amber-700 px-6 py-4'>
+                    <div className='flex items-center justify-between'>
+                        <div className='flex items-center gap-3'>
+                            <div className='p-2 bg-white/20 rounded-xl backdrop-blur-sm'>
+                                <RefreshCw className='w-5 h-5 text-white' />
+                            </div>
+                            <div>
+                                <h2 className='text-lg font-semibold text-white'>
+                                    Edit Produk
+                                </h2>
+                                <p className='text-amber-100 text-sm'>
+                                    Perbarui detail produk konveksi
+                                </p>
+                            </div>
+                        </div>
+                        <button
+                            onClick={onClose}
+                            className='p-2 hover:bg-white/20 rounded-xl transition-colors duration-200'
+                        >
+                            <X className='w-5 h-5 text-white' />
+                        </button>
+                    </div>
+                </div>
+
+                {/* CURRENT PRODUCT INFO */}
+                <div className='px-6 py-4 bg-gradient-to-r from-amber-50 to-amber-100 border-b border-amber-200'>
+                    <div className='flex items-center gap-3'>
+                        <div className='w-12 h-12 rounded-xl bg-white border border-amber-200 overflow-hidden'>
+                            {product.foto ? (
+                                <img
+                                    src={product.foto}
+                                    alt={product.nama_produk}
+                                    className='w-full h-full object-cover'
+                                />
+                            ) : (
+                                <div className='w-full h-full flex items-center justify-center'>
+                                    <Package className='w-6 h-6 text-amber-400' />
+                                </div>
+                            )}
+                        </div>
+                        <div>
+                            <h3 className='font-semibold text-gray-900'>
+                                {product.nama_produk}
+                            </h3>
+                            <p className='text-sm text-gray-600'>
+                                ID: {product.id?.slice(0, 8)}...
+                            </p>
+                        </div>
+                    </div>
                 </div>
 
                 {/* FORM */}
                 <form
                     onSubmit={handleSubmit}
-                    className='p-6 space-y-4'
+                    className='p-6 space-y-5 max-h-[65vh] overflow-y-auto'
                 >
                     {/* NAMA PRODUK */}
-                    <div>
-                        <label className='text-sm font-medium text-gray-700'>
+                    <div className='space-y-2'>
+                        <label className='text-sm font-medium text-gray-700 flex items-center gap-2'>
+                            <Tag className='w-4 h-4 text-blue-600' />
                             Nama Produk
                         </label>
-                        <input
-                            required
-                            className='mt-1 w-full px-4 py-2.5 rounded-xl bg-gray-100 focus:bg-white focus:ring-2 focus:ring-indigo-200 outline-none text-sm'
-                            placeholder='Contoh: Kaos Polo'
-                            value={form.nama_produk}
-                            onChange={(e) =>
-                                setForm({
-                                    ...form,
-                                    nama_produk: e.target.value,
-                                })
-                            }
-                        />
+                        <div className='relative'>
+                            <input
+                                required
+                                className='w-full px-4 py-3 pl-11 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300'
+                                placeholder='Contoh: Kaos Polo Cotton Premium'
+                                value={form.nama_produk}
+                                onChange={(e) =>
+                                    setForm({
+                                        ...form,
+                                        nama_produk: e.target.value,
+                                    })
+                                }
+                            />
+                            <Sparkles className='absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400' />
+                        </div>
                     </div>
 
                     {/* HARGA */}
-                    <div>
-                        <label className='text-sm font-medium text-gray-700'>
-                            Harga
+                    <div className='space-y-2'>
+                        <label className='text-sm font-medium text-gray-700 flex items-center gap-2'>
+                            <DollarSign className='w-4 h-4 text-green-600' />
+                            Harga Produk
                         </label>
-                        <input
-                            type='number'
-                            required
-                            className='mt-1 w-full px-4 py-2.5 rounded-xl bg-gray-100 focus:bg-white focus:ring-2 focus:ring-indigo-200 outline-none text-sm'
-                            placeholder='50000'
-                            value={form.harga}
-                            onChange={(e) =>
-                                setForm({ ...form, harga: e.target.value })
-                            }
-                        />
+                        <div className='relative'>
+                            <input
+                                type='number'
+                                required
+                                className='w-full px-4 py-3 pl-11 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300'
+                                placeholder='50000'
+                                value={form.harga}
+                                onChange={(e) =>
+                                    setForm({ ...form, harga: e.target.value })
+                                }
+                            />
+                            <span className='absolute left-4 top-1/2 -translate-y-1/2 text-gray-400'>
+                                Rp
+                            </span>
+                        </div>
                     </div>
 
                     {/* BAHAN */}
-                    <div>
-                        <label className='text-sm font-medium text-gray-700'>
-                            Bahan
+                    <div className='space-y-2'>
+                        <label className='text-sm font-medium text-gray-700 flex items-center gap-2'>
+                            <Layers className='w-4 h-4 text-amber-600' />
+                            Bahan Produk
                         </label>
-                        <input
-                            className='mt-1 w-full px-4 py-2.5 rounded-xl bg-gray-100 focus:bg-white focus:ring-2 focus:ring-indigo-200 outline-none text-sm'
-                            placeholder='Drill, Cotton, Canvas'
-                            value={form.bahan}
-                            onChange={(e) =>
-                                setForm({ ...form, bahan: e.target.value })
-                            }
-                        />
+                        <div className='relative'>
+                            <input
+                                className='w-full px-4 py-3 pl-11 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300'
+                                placeholder='Drill, Cotton Combed 30s, Canvas'
+                                value={form.bahan}
+                                onChange={(e) =>
+                                    setForm({ ...form, bahan: e.target.value })
+                                }
+                            />
+                            <Layers className='absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400' />
+                        </div>
                     </div>
 
-                    {/* FOTO */}
-                    <div>
-                        <label className='text-sm font-medium text-gray-700'>
-                            Foto Produk
+                    {/* FOTO PRODUK */}
+                    <div className='space-y-2'>
+                        <label className='text-sm font-medium text-gray-700 flex items-center gap-2'>
+                            <ImagePlus className='w-4 h-4 text-purple-600' />
+                            Foto Produk (Opsional)
                         </label>
-                        <label className='mt-1 flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-100 cursor-pointer hover:bg-gray-200 transition text-sm text-gray-600'>
-                            <ImagePlus className='w-5 h-5' />
-                            {foto
-                                ? foto.name
-                                : 'Upload gambar produk (opsional)'}
-                            <input
-                                type='file'
-                                accept='image/*'
-                                hidden
-                                onChange={(e) => setFoto(e.target.files[0])}
-                            />
-                        </label>
+
+                        <div className='flex items-center gap-4 mb-3'>
+                            <div className='flex-1'>
+                                <p className='text-sm text-gray-600 mb-1'>
+                                    Foto saat ini:
+                                </p>
+                                {product.foto ? (
+                                    <div className='flex items-center gap-2 text-sm text-gray-500'>
+                                        <ImageIcon className='w-4 h-4' />
+                                        <span>Foto tersedia</span>
+                                    </div>
+                                ) : (
+                                    <div className='flex items-center gap-2 text-sm text-gray-500'>
+                                        <X className='w-4 h-4' />
+                                        <span>Tidak ada foto</span>
+                                    </div>
+                                )}
+                            </div>
+                            <div className='text-right'>
+                                <p className='text-sm text-gray-600 mb-1'>
+                                    Aksi:
+                                </p>
+                                <button
+                                    type='button'
+                                    onClick={() => {
+                                        setFoto(null)
+                                        setPreview(null)
+                                        setUploadProgress(0)
+                                    }}
+                                    className='px-3 py-1.5 text-sm bg-red-50 text-red-600 rounded-lg hover:bg-red-100 transition-colors'
+                                >
+                                    Hapus Foto
+                                </button>
+                            </div>
+                        </div>
+
+                        {preview ? (
+                            <div className='relative'>
+                                <img
+                                    src={preview}
+                                    alt='Preview'
+                                    className='w-full h-48 object-cover rounded-xl border-2 border-dashed border-blue-200'
+                                />
+                                {uploadProgress > 0 && uploadProgress < 100 && (
+                                    <div className='absolute bottom-3 left-3 right-3 bg-white/90 backdrop-blur-sm rounded-full overflow-hidden'>
+                                        <div
+                                            className='h-2 bg-gradient-to-r from-blue-500 to-blue-600 transition-all duration-300'
+                                            style={{
+                                                width: `${uploadProgress}%`,
+                                            }}
+                                        />
+                                    </div>
+                                )}
+                                <div className='absolute top-3 right-3'>
+                                    <button
+                                        type='button'
+                                        onClick={() => {
+                                            setFoto(null)
+                                            setPreview(product.foto || null)
+                                            setUploadProgress(0)
+                                        }}
+                                        className='p-2 bg-red-500 text-white rounded-lg hover:bg-red-600 transition-colors'
+                                    >
+                                        <X className='w-4 h-4' />
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <label className='block'>
+                                <div className='border-2 border-dashed border-gray-300 rounded-xl p-8 text-center hover:border-blue-400 hover:bg-blue-50/50 transition-all duration-300 cursor-pointer group'>
+                                    <div className='flex flex-col items-center justify-center gap-3'>
+                                        <div className='p-3 bg-gradient-to-br from-blue-100 to-blue-200 rounded-xl group-hover:scale-110 transition-transform duration-300'>
+                                            <Upload className='w-6 h-6 text-blue-600' />
+                                        </div>
+                                        <div>
+                                            <p className='font-medium text-gray-700'>
+                                                Ganti Foto Produk
+                                            </p>
+                                            <p className='text-sm text-gray-500 mt-1'>
+                                                PNG, JPG (max. 5MB) - opsional
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                                <input
+                                    type='file'
+                                    accept='image/*'
+                                    hidden
+                                    onChange={handleFileChange}
+                                />
+                            </label>
+                        )}
                     </div>
 
                     {/* DESKRIPSI */}
-                    <div>
-                        <label className='text-sm font-medium text-gray-700'>
-                            Deskripsi
+                    <div className='space-y-2'>
+                        <label className='text-sm font-medium text-gray-700 flex items-center gap-2'>
+                            <FileText className='w-4 h-4 text-emerald-600' />
+                            Deskripsi Produk
                         </label>
-                        <textarea
-                            rows={3}
-                            className='mt-1 w-full px-4 py-2.5 rounded-xl bg-gray-100 focus:bg-white focus:ring-2 focus:ring-indigo-200 outline-none text-sm resize-none'
-                            placeholder='Deskripsi singkat produk'
-                            value={form.deskripsi}
-                            onChange={(e) =>
-                                setForm({
-                                    ...form,
-                                    deskripsi: e.target.value,
-                                })
-                            }
-                        />
+                        <div className='relative'>
+                            <textarea
+                                rows={4}
+                                className='w-full px-4 py-3 rounded-xl border border-gray-200 bg-gray-50 focus:bg-white focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none transition-all duration-300 resize-none'
+                                placeholder='Deskripsi lengkap produk...\n• Material berkualitas\n• Jahitan rapi\n• Tersedia berbagai ukuran'
+                                value={form.deskripsi}
+                                onChange={(e) =>
+                                    setForm({
+                                        ...form,
+                                        deskripsi: e.target.value,
+                                    })
+                                }
+                            />
+                        </div>
                     </div>
 
-                    {/* SUBMIT */}
-                    <button
-                        disabled={loading}
-                        className='w-full inline-flex items-center justify-center gap-2 bg-indigo-600 text-white py-2.5 rounded-xl font-medium hover:bg-indigo-700 transition disabled:opacity-50'
-                    >
-                        {loading ? (
-                            <Loader2 className='w-4 h-4 animate-spin' />
-                        ) : (
-                            <Save className='w-4 h-4' />
-                        )}
-                        {loading ? 'Menyimpan...' : 'Update Produk'}
-                    </button>
+                    {/* ACTION BUTTONS */}
+                    <div className='flex items-center gap-3 pt-4'>
+                        <button
+                            type='button'
+                            onClick={onClose}
+                            className='flex-1 px-4 py-3 border border-gray-300 text-gray-700 font-medium rounded-xl hover:bg-gray-50 transition-colors duration-300'
+                        >
+                            Batal
+                        </button>
+                        <button
+                            disabled={loading}
+                            className='flex-1 inline-flex items-center justify-center gap-3 bg-gradient-to-r from-amber-600 to-amber-700 text-white py-3 rounded-xl font-semibold hover:from-amber-700 hover:to-amber-800 disabled:opacity-50 transition-all duration-300 group'
+                        >
+                            {loading ? (
+                                <>
+                                    <Loader2 className='w-5 h-5 animate-spin' />
+                                    <span>Memperbarui...</span>
+                                </>
+                            ) : (
+                                <>
+                                    <Save className='w-5 h-5 group-hover:scale-110 transition-transform' />
+                                    <span>Update</span>
+                                    <CheckCircle className='w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity' />
+                                </>
+                            )}
+                        </button>
+                    </div>
                 </form>
+
+                {/* FOOTER NOTES */}
+                <div className='px-6 py-4 bg-gray-50 border-t border-gray-100'>
+                    <div className='flex items-center gap-2 text-sm text-gray-500'>
+                        <RefreshCw className='w-4 h-4' />
+                        <span>Perubahan akan diterapkan pada produk ini</span>
+                    </div>
+                </div>
             </div>
         </div>
     )

@@ -9,42 +9,55 @@ import {
     FiShield,
     FiCalendar,
     FiSearch,
+    FiChevronRight,
     FiFilter,
 } from 'react-icons/fi'
-import { MapPin, X, User, Mail, Phone, Lock, Check } from 'lucide-react'
-import EditUserModal from '../../components/admin/EditUserModal'
+import {
+    Check,
+    Mail,
+    MapPin,
+    Phone,
+    User,
+    X,
+    MoreVertical,
+    Shield,
+} from 'lucide-react'
 
 const UsersAdmin = () => {
     const [users, setUsers] = useState([])
     const [loading, setLoading] = useState(true)
     const [selectedUser, setSelectedUser] = useState(null)
     const [searchTerm, setSearchTerm] = useState('')
-    const [roleFilter, setRoleFilter] = useState('ALL')
     const [isModalOpen, setIsModalOpen] = useState(false)
+
     const [formData, setFormData] = useState({
         nama: '',
         email: '',
         no_hp: '',
         alamat: '',
-        role: 'CUSTOMER',
     })
 
+    // ======================
+    // FETCH USERS
+    // ======================
     useEffect(() => {
         const fetchUsers = async () => {
             const result = await userService.getAllUsers()
-
             if (result.success) {
                 setUsers(result.data)
             } else {
-                alert(result.message)
+                console.log(result.message);
+                
             }
-
             setLoading(false)
         }
 
         fetchUsers()
     }, [])
 
+    // ======================
+    // HANDLERS
+    // ======================
     const handleEdit = (user) => {
         setSelectedUser(user)
         setFormData({
@@ -52,17 +65,13 @@ const UsersAdmin = () => {
             email: user.email || '',
             no_hp: user.no_hp || '',
             alamat: user.alamat || '',
-            role: user.role || 'CUSTOMER',
         })
         setIsModalOpen(true)
     }
 
     const handleChange = (e) => {
         const { name, value } = e.target
-        setFormData((prev) => ({
-            ...prev,
-            [name]: value,
-        }))
+        setFormData((prev) => ({ ...prev, [name]: value }))
     }
 
     const handleSubmit = async (e) => {
@@ -74,7 +83,6 @@ const UsersAdmin = () => {
         )
 
         if (result.success) {
-            // update data di tabel tanpa reload
             setUsers((prev) =>
                 prev.map((u) =>
                     u.id_user === selectedUser.id_user
@@ -89,399 +97,458 @@ const UsersAdmin = () => {
         }
     }
 
-    // Filter users based on search term and role filter
+    // ======================
+    // FILTER (SEARCH ONLY)
+    // ======================
     const filteredUsers = users.filter((user) => {
-        const matchesSearch =
+        return (
             user.nama.toLowerCase().includes(searchTerm.toLowerCase()) ||
             user.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (user.no_hp && user.no_hp.includes(searchTerm))
-
-        const matchesRole = roleFilter === 'ALL' || user.role === roleFilter
-
-        return matchesSearch && matchesRole
+        )
     })
 
     const getRoleColor = (role) => {
         switch (role) {
             case 'ADMIN':
-                return 'bg-purple-100 text-purple-800 border-purple-200'
+                return 'from-purple-500 to-indigo-600 shadow-purple-100'
             case 'CUSTOMER':
-                return 'bg-blue-100 text-blue-800 border-blue-200'
+                return 'from-blue-500 to-cyan-600 shadow-blue-100'
             default:
-                return 'bg-gray-100 text-gray-800 border-gray-200'
+                return 'from-gray-500 to-gray-600 shadow-gray-100'
         }
     }
 
-    if (loading)
-        return (
-            <div className='flex justify-center items-center h-64'>
-                <div className='text-center'>
-                    <div className='w-16 h-16 border-4 border-t-blue-500 border-blue-200 rounded-full animate-spin mx-auto'></div>
-                    <p className='mt-4 text-gray-600'>
-                        Memuat data pengguna...
-                    </p>
-                </div>
-            </div>
-        )
+    const getRoleIcon = (role) => {
+        switch (role) {
+            case 'ADMIN':
+                return '🛡️'
+            case 'CUSTOMER':
+                return '👤'
+            default:
+                return '👤'
+        }
+    }
 
     return (
-        <div className='p-6 bg-gray-50 min-h-screen'>
-            <div className='max-w-7xl mx-auto'>
-                {/* Header */}
-                <div className='mb-8'>
-                    <h1 className='text-3xl font-bold text-gray-900'>
-                        Manajemen Pengguna
-                    </h1>
-                    <p className='text-gray-600 mt-2'>
-                        Kelola data pengguna dan akses sistem
-                    </p>
-                </div>
-
-                {/* Filters and Search */}
-                <div className='bg-white rounded-xl shadow-sm p-4 mb-6'>
-                    <div className='flex flex-col md:flex-row md:items-center justify-between gap-4'>
-                        <div className='relative flex-1'>
-                            <FiSearch className='absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400' />
-                            <input
-                                type='text'
-                                placeholder='Cari berdasarkan nama, email, atau nomor HP...'
-                                className='w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition'
-                                value={searchTerm}
-                                onChange={(e) => setSearchTerm(e.target.value)}
-                            />
-                        </div>
-
-                        <div className='flex items-center space-x-4'>
-                            <div className='flex items-center'>
-                                <FiFilter className='text-gray-400 mr-2' />
-                                <select
-                                    className='border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none'
-                                    value={roleFilter}
-                                    onChange={(e) =>
-                                        setRoleFilter(e.target.value)
-                                    }
-                                >
-                                    <option value='ALL'>Semua Role</option>
-                                    <option value='ADMIN'>Admin</option>
-                                    <option value='CUSTOMER'>Customer</option>
-                                </select>
-                            </div>
-
-                            <div className='text-sm text-gray-600'>
-                                {filteredUsers.length} dari {users.length}{' '}
-                                pengguna
+        <div className='min-h-screen bg-gradient-to-br from-gray-50 to-gray-100'>
+            {/* Main Content */}
+            <div className='p-6 lg:p-8'>
+                <div className='max-w-7xl mx-auto'>
+                    {/* Header Section */}
+                    <div className='mb-8 flex flex-col lg:flex-row lg:items-center lg:justify-between'>
+                        <div>
+                            <div className='flex items-center gap-3 mb-3'>
+                                <div className='p-2 bg-gradient-to-r from-blue-500 to-indigo-600 rounded-xl shadow-lg'>
+                                    <Shield className='w-6 h-6 text-white' />
+                                </div>
+                                <div>
+                                    <h1 className='text-3xl lg:text-4xl font-bold bg-gradient-to-r from-gray-900 to-gray-700 bg-clip-text text-transparent'>
+                                        Manajemen Pengguna
+                                    </h1>
+                                    <p className='text-gray-600 mt-1'>
+                                        Kelola dan pantau semua pengguna sistem
+                                    </p>
+                                </div>
                             </div>
                         </div>
-                    </div>
-                </div>
 
-                {/* Users Table */}
-                <div className='bg-white rounded-xl shadow-sm overflow-hidden'>
-                    <div className='overflow-x-auto'>
-                        <table className='min-w-full divide-y divide-gray-200'>
-                            <thead className='bg-gray-50'>
-                                <tr>
-                                    <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                                        No
-                                    </th>
-                                    <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                                        Pengguna
-                                    </th>
-                                    <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                                        Kontak
-                                    </th>
-                                    <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                                        Alamat
-                                    </th>
-                                    <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                                        Role
-                                    </th>
-                                    <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                                        Bergabung
-                                    </th>
-                                    <th className='px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider'>
-                                        Aksi
-                                    </th>
-                                </tr>
-                            </thead>
-                            <tbody className='bg-white divide-y divide-gray-200'>
-                                {filteredUsers.length === 0 ? (
-                                    <tr>
-                                        <td
-                                            colSpan='7'
-                                            className='px-6 py-12 text-center'
-                                        >
-                                            <div className='flex flex-col items-center justify-center'>
-                                                <FiUser className='w-12 h-12 text-gray-300 mb-4' />
-                                                <p className='text-gray-500 text-lg'>
-                                                    Tidak ada data pengguna
-                                                </p>
-                                                {searchTerm ||
-                                                roleFilter !== 'ALL' ? (
-                                                    <p className='text-gray-400 mt-1'>
-                                                        Coba ubah filter
-                                                        pencarian
-                                                    </p>
-                                                ) : null}
-                                            </div>
-                                        </td>
-                                    </tr>
-                                ) : (
-                                    filteredUsers.map((user, index) => (
-                                        <tr
-                                            key={user.id_user}
-                                            className={`hover:bg-gray-50 transition-colors ${
-                                                selectedUser?.id_user ===
-                                                user.id_user
-                                                    ? 'bg-blue-50'
-                                                    : ''
-                                            }`}
-                                            onClick={() =>
-                                                setSelectedUser(user)
-                                            }
-                                        >
-                                            <td className='px-6 py-4 whitespace-nowrap'>
-                                                <div className='text-sm font-medium text-gray-900'>
-                                                    {index + 1}
-                                                </div>
-                                            </td>
-
-                                            <td className='px-6 py-4'>
-                                                <div className='flex items-center'>
-                                                    <div className='ml-4'>
-                                                        <div className='text-sm font-medium text-gray-900'>
-                                                            {user.nama}
-                                                        </div>
-                                                        <div className='text-sm text-gray-500'>
-                                                            {user.email}
-                                                        </div>
-                                                    </div>
-                                                </div>
-                                            </td>
-
-                                            <td className='px-6 py-4'>
-                                                <div className='space-y-1'>
-                                                    <div className='flex items-center text-sm text-gray-600'>
-                                                        <FiMail className='mr-2 text-gray-400' />
-                                                        {user.email}
-                                                    </div>
-                                                    {user.no_hp && (
-                                                        <div className='flex items-center text-sm text-gray-600'>
-                                                            <FiPhone className='mr-2 text-gray-400' />
-                                                            {user.no_hp}
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            </td>
-
-                                            <td className='px-6 py-4'>
-                                                <div className='flex items-center text-sm text-gray-600'>
-                                                    <FiMapPin className='mr-2 text-gray-400' />
-                                                    {user.alamat ||
-                                                        'Tidak ada alamat'}
-                                                </div>
-                                            </td>
-
-                                            <td className='px-6 py-4 whitespace-nowrap'>
-                                                <span
-                                                    className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium border ${getRoleColor(
-                                                        user.role
-                                                    )}`}
-                                                >
-                                                    <FiShield className='mr-1.5' />
-                                                    {user.role}
-                                                </span>
-                                            </td>
-
-                                            <td className='px-6 py-4 whitespace-nowrap'>
-                                                <div className='flex items-center text-sm text-gray-600'>
-                                                    <FiCalendar className='mr-2 text-gray-400' />
-                                                    {new Date(
-                                                        user.created_at
-                                                    ).toLocaleDateString(
-                                                        'id-ID',
-                                                        {
-                                                            day: 'numeric',
-                                                            month: 'long',
-                                                            year: 'numeric',
-                                                        }
-                                                    )}
-                                                </div>
-                                            </td>
-
-                                            <td className='px-6 py-4 whitespace-nowrap text-sm font-medium'>
-                                                <button
-                                                    onClick={(e) => {
-                                                        e.stopPropagation()
-                                                        handleEdit(user)
-                                                    }}
-                                                    className='inline-flex items-center px-3 py-2 border border-transparent text-sm leading-4 font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition'
-                                                >
-                                                    <FiEdit className='mr-1.5' />
-                                                    Edit
-                                                </button>
-                                            </td>
-                                        </tr>
-                                    ))
-                                )}
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                {isModalOpen && (
-                    <div className='fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm transition-all'>
-                        <div
-                            className='bg-white w-full max-w-md mx-4 rounded-2xl shadow-2xl transform transition-all'
-                            onClick={(e) => e.stopPropagation()}
-                        >
-                            {/* HEADER */}
-                            <div className='px-6 py-5 border-b flex justify-between items-center bg-gradient-to-r from-blue-50 to-indigo-50 rounded-t-2xl'>
-                                <div className='flex items-center gap-3'>
-                                    <div className='p-2 bg-blue-100 rounded-lg'>
-                                        <User className='w-5 h-5 text-blue-600' />
+                        {/* Stats - Modern Design */}
+                        <div className='mt-4 lg:mt-0'>
+                            <div className='flex gap-4'>
+                                <div className='bg-gradient-to-br from-white to-gray-50 rounded-2xl p-5 shadow-sm border border-gray-100 hover:shadow-md transition-shadow duration-300 min-w-[140px] group'>
+                                    <div className='flex items-center justify-between mb-3'>
+                                        <div className='p-2.5 bg-blue-50 rounded-xl group-hover:bg-blue-100 transition-colors duration-300'>
+                                            <svg
+                                                className='w-5 h-5 text-blue-600'
+                                                fill='none'
+                                                stroke='currentColor'
+                                                viewBox='0 0 24 24'
+                                            >
+                                                <path
+                                                    strokeLinecap='round'
+                                                    strokeLinejoin='round'
+                                                    strokeWidth='2'
+                                                    d='M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.67 3.137a6 6 0 00-11.334 0'
+                                                />
+                                            </svg>
+                                        </div>
+                                        <div className='text-xs font-medium text-blue-600 bg-blue-50 px-2 py-1 rounded-full'>
+                                            Total
+                                        </div>
                                     </div>
-                                    <div>
-                                        <h3 className='text-xl font-bold text-gray-800'>
-                                            Edit Pengguna
-                                        </h3>
-                                        <p className='text-sm text-gray-600'>
-                                            Perbarui informasi pengguna
-                                        </p>
+                                    <div className='text-3xl font-bold text-gray-900 mb-1'>
+                                        {users.length}
+                                    </div>
+                                    <div className='text-sm text-gray-500 font-medium'>
+                                        Total Pengguna
+                                    </div>
+                                    <div className='mt-3 pt-3 border-t border-gray-100'>
+                                        <div className='text-xs text-gray-400 flex items-center'>
+                                            <svg
+                                                className='w-3 h-3 mr-1'
+                                                fill='currentColor'
+                                                viewBox='0 0 20 20'
+                                            >
+                                                <path
+                                                    fillRule='evenodd'
+                                                    d='M12 7a1 1 0 110-2h5a1 1 0 011 1v5a1 1 0 11-2 0V8.414l-4.293 4.293a1 1 0 01-1.414 0L8 10.414l-4.293 4.293a1 1 0 01-1.414-1.414l5-5a1 1 0 011.414 0L11 10.586 14.586 7H12z'
+                                                    clipRule='evenodd'
+                                                />
+                                            </svg>
+                                            Semua pengguna terdaftar
+                                        </div>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
+                    </div>
 
-                                <button
-                                    onClick={() => setIsModalOpen(false)}
-                                    className='p-2 hover:bg-gray-100 rounded-full transition'
-                                    aria-label='Tutup'
-                                >
-                                    <X className='w-5 h-5 text-gray-500' />
+                    {/* Search and Filter Card */}
+                    <div className='mb-8 bg-white rounded-2xl shadow-lg border border-gray-200 p-6'>
+                        <div className='flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4'>
+                            <div className='relative flex-1'>
+                                <div className='absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none'>
+                                    <FiSearch className='h-5 w-5 text-gray-400' />
+                                </div>
+                                <input
+                                    type='text'
+                                    placeholder='Cari berdasarkan nama, email, atau nomor HP...'
+                                    className='w-full pl-10 pr-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200'
+                                    value={searchTerm}
+                                    onChange={(e) =>
+                                        setSearchTerm(e.target.value)
+                                    }
+                                />
+                            </div>
+                            <div className='flex items-center gap-3'>
+                                <button className='flex items-center gap-2 px-4 py-3 bg-gray-50 hover:bg-gray-100 text-gray-700 rounded-xl transition-colors duration-200'>
+                                    <FiFilter className='h-4 w-4' />
+                                    <span>Filter</span>
                                 </button>
                             </div>
+                        </div>
+                        <div className='mt-4 text-sm text-gray-600 flex items-center'>
+                            <span className='px-2 py-1 bg-blue-50 text-blue-600 rounded-lg mr-2'>
+                                {filteredUsers.length}
+                            </span>
+                            pengguna ditemukan
+                        </div>
+                    </div>
 
-                            {/* FORM */}
+                    {/* Users Table Card */}
+                    <div className='bg-white rounded-2xl shadow-lg border border-gray-200 overflow-hidden'>
+                        <div className='overflow-x-auto'>
+                            <table className='w-full'>
+                                <thead>
+                                    <tr className='bg-gradient-to-r from-gray-50 to-gray-100'>
+                                        <th className='px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider'>
+                                            <div className='flex items-center gap-2'>
+                                                <div className='w-2 h-2 bg-blue-500 rounded-full'></div>
+                                                Pengguna
+                                            </div>
+                                        </th>
+                                        <th className='px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider'>
+                                            Kontak
+                                        </th>
+                                        <th className='px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider'>
+                                            Role
+                                        </th>
+                                        <th className='px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider'>
+                                            Bergabung
+                                        </th>
+                                        <th className='px-6 py-4 text-left text-xs font-semibold text-gray-700 uppercase tracking-wider'>
+                                            Aksi
+                                        </th>
+                                    </tr>
+                                </thead>
+                                <tbody className='divide-y divide-gray-200'>
+                                    {loading ? (
+                                        <tr>
+                                            <td
+                                                colSpan={5}
+                                                className='px-6 py-16 text-center'
+                                            >
+                                                <div className='flex flex-col items-center justify-center gap-4'>
+                                                    {/* Spinner */}
+                                                    <div className='relative w-14 h-14'>
+                                                        <div className='w-full h-full rounded-full border-4 border-gray-200'></div>
+                                                        <div className='absolute top-0 left-0 w-full h-full rounded-full border-4 border-blue-600 border-t-transparent animate-spin'></div>
+                                                    </div>
+
+                                                    {/* Text */}
+                                                    <div className='text-sm text-gray-500'>
+                                                        Memuat data pengguna...
+                                                    </div>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : filteredUsers.length === 0 ? (
+                                        <tr>
+                                            <td
+                                                colSpan='5'
+                                                className='px-6 py-16 text-center'
+                                            >
+                                                <div className='flex flex-col items-center justify-center'>
+                                                    <div className='w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-4'>
+                                                        <FiUser className='w-8 h-8 text-gray-400' />
+                                                    </div>
+                                                    <h3 className='text-lg font-medium text-gray-900 mb-2'>
+                                                        Tidak ada pengguna
+                                                        ditemukan
+                                                    </h3>
+                                                    <p className='text-gray-600'>
+                                                        Coba ubah kata kunci
+                                                        pencarian Anda
+                                                    </p>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ) : (
+                                        filteredUsers.map((user, index) => (
+                                            <tr
+                                                key={user.id_user}
+                                                className='hover:bg-gray-50 transition-colors duration-200 group'
+                                            >
+                                                <td className='px-6 py-4'>
+                                                    <div className='flex items-center gap-3'>
+                                                        <div className='relative'>
+                                                            <div className='w-12 h-12 bg-gradient-to-br from-blue-100 to-indigo-100 rounded-xl flex items-center justify-center'>
+                                                                <span className='text-xl'>
+                                                                    {getRoleIcon(
+                                                                        user.role
+                                                                    )}
+                                                                </span>
+                                                            </div>
+                                                            <div className='absolute -bottom-1 -right-1 w-5 h-5 bg-white rounded-full border-2 border-white'>
+                                                                <div
+                                                                    className={`w-full h-full rounded-full bg-gradient-to-r ${getRoleColor(
+                                                                        user.role
+                                                                    )}`}
+                                                                ></div>
+                                                            </div>
+                                                        </div>
+                                                        <div>
+                                                            <div className='font-semibold text-gray-900 group-hover:text-blue-600 transition-colors'>
+                                                                {user.nama}
+                                                            </div>
+                                                            <div className='text-sm text-gray-600 flex items-center gap-1'>
+                                                                <FiMail className='w-3 h-3' />
+                                                                {user.email}
+                                                            </div>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className='px-6 py-4'>
+                                                    <div className='space-y-1'>
+                                                        <div className='flex items-center gap-2 text-sm text-gray-700'>
+                                                            <FiPhone className='w-4 h-4 text-gray-400' />
+                                                            {user.no_hp || '-'}
+                                                        </div>
+                                                        <div className='flex items-center gap-2 text-sm text-gray-700'>
+                                                            <FiMapPin className='w-4 h-4 text-gray-400' />
+                                                            <span className='truncate max-w-[200px]'>
+                                                                {user.alamat ||
+                                                                    '-'}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </td>
+                                                <td className='px-6 py-4'>
+                                                    <span
+                                                        className={`inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r ${getRoleColor(
+                                                            user.role
+                                                        )} text-white text-xs font-medium shadow-sm`}
+                                                    >
+                                                        <FiShield className='w-3 h-3' />
+                                                        {user.role}
+                                                    </span>
+                                                </td>
+                                                <td className='px-6 py-4'>
+                                                    <div className='text-sm text-gray-700'>
+                                                        {new Date(
+                                                            user.created_at
+                                                        ).toLocaleDateString(
+                                                            'id-ID',
+                                                            {
+                                                                weekday: 'long',
+                                                                year: 'numeric',
+                                                                month: 'long',
+                                                                day: 'numeric',
+                                                            }
+                                                        )}
+                                                    </div>
+                                                </td>
+                                                <td className='px-6 py-4'>
+                                                    <div className='flex items-center gap-2'>
+                                                        <button
+                                                            onClick={() =>
+                                                                handleEdit(user)
+                                                            }
+                                                            className='px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white rounded-xl shadow-sm hover:shadow-md transition-all duration-200 flex items-center gap-2'
+                                                        >
+                                                            <FiEdit className='w-4 h-4' />
+                                                            Edit
+                                                        </button>
+                                                    </div>
+                                                </td>
+                                            </tr>
+                                        ))
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            {/* Modal Edit User */}
+            {isModalOpen && (
+                <div className='fixed inset-0 z-50 overflow-y-auto'>
+                    {/* Backdrop */}
+                    <div
+                        className='fixed inset-0 bg-black/50 backdrop-blur-sm transition-opacity'
+                        onClick={() => setIsModalOpen(false)}
+                    />
+
+                    {/* Modal Container */}
+                    <div className='flex items-center justify-center min-h-screen px-4 py-6'>
+                        <div
+                            className='relative bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden transform transition-all'
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            {/* Modal Header */}
+                            <div className='bg-gradient-to-r from-blue-600 to-indigo-600 p-6'>
+                                <div className='flex items-center justify-between'>
+                                    <div className='flex items-center gap-3'>
+                                        <div className='p-2 bg-white/20 rounded-lg backdrop-blur-sm'>
+                                            <User className='w-5 h-5 text-white' />
+                                        </div>
+                                        <div>
+                                            <h3 className='text-xl font-semibold text-white'>
+                                                Edit Pengguna
+                                            </h3>
+                                            <p className='text-blue-100 text-sm mt-1'>
+                                                {selectedUser?.email}
+                                            </p>
+                                        </div>
+                                    </div>
+                                    <button
+                                        onClick={() => setIsModalOpen(false)}
+                                        className='p-2 hover:bg-white/10 rounded-lg transition-colors'
+                                    >
+                                        <X className='w-5 h-5 text-white' />
+                                    </button>
+                                </div>
+                            </div>
+
+                            {/* Modal Body */}
                             <form
                                 onSubmit={handleSubmit}
                                 className='p-6 space-y-5'
                             >
-                                {/* Nama */}
-                                <div className='space-y-2'>
-                                    <label className='text-sm font-medium text-gray-700 flex items-center gap-2'>
-                                        <User className='w-4 h-4 text-gray-500' />
-                                        Nama Lengkap
-                                    </label>
-                                    <input
-                                        type='text'
-                                        name='nama'
-                                        value={formData.nama}
-                                        onChange={handleChange}
-                                        className='w-full border rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition'
-                                        required
-                                    />
-                                </div>
-
-                                {/* Email */}
-                                <div className='space-y-2'>
-                                    <label className='text-sm font-medium text-gray-700 flex items-center gap-2'>
-                                        <Mail className='w-4 h-4 text-gray-500' />
-                                        Alamat Email
-                                    </label>
-                                    <div className='relative'>
+                                {/* Form Fields */}
+                                <div className='space-y-4'>
+                                    {/* Nama */}
+                                    <div>
+                                        <label className='block text-sm font-medium text-gray-700 mb-2'>
+                                            <div className='flex items-center gap-2'>
+                                                <User className='w-4 h-4 text-gray-500' />
+                                                Nama Lengkap
+                                            </div>
+                                        </label>
                                         <input
-                                            type='email'
+                                            name='nama'
+                                            value={formData.nama}
+                                            onChange={handleChange}
+                                            placeholder='Masukkan nama lengkap'
+                                            className='w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200'
+                                            required
+                                        />
+                                    </div>
+
+                                    {/* Email (disabled) */}
+                                    <div>
+                                        <label className='block text-sm font-medium text-gray-700 mb-2'>
+                                            <div className='flex items-center gap-2'>
+                                                <Mail className='w-4 h-4 text-gray-500' />
+                                                Email
+                                            </div>
+                                        </label>
+                                        <input
                                             value={formData.email}
                                             disabled
-                                            className='w-full border rounded-xl px-4 py-3 bg-gray-100 text-gray-500 cursor-not-allowed'
+                                            className='w-full px-4 py-3 bg-gray-100 text-gray-500 rounded-xl cursor-not-allowed'
                                         />
-                                        <span className='absolute right-3 top-3 text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-md'>
-                                            Tidak dapat diubah
-                                        </span>
+                                        <p className='mt-1 text-xs text-gray-500'>
+                                            Email tidak dapat diubah
+                                        </p>
                                     </div>
-                                </div>
 
-                                {/* No HP */}
-                                <div className='space-y-2'>
-                                    <label className='text-sm font-medium text-gray-700 flex items-center gap-2'>
-                                        <Phone className='w-4 h-4 text-gray-500' />
-                                        Nomor Telepon
-                                    </label>
-                                    <input
-                                        type='tel'
-                                        name='no_hp'
-                                        value={formData.no_hp}
-                                        onChange={handleChange}
-                                        className='w-full border rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition'
-                                    />
-                                </div>
-
-                                {/* Password */}
-                                <div className='space-y-2'>
-                                    <div className='flex justify-between'>
-                                        <label className='text-sm font-medium text-gray-700 flex items-center gap-2'>
-                                            <Lock className='w-4 h-4 text-gray-500' />
-                                            Password Baru
+                                    {/* No HP */}
+                                    <div>
+                                        <label className='block text-sm font-medium text-gray-700 mb-2'>
+                                            <div className='flex items-center gap-2'>
+                                                <Phone className='w-4 h-4 text-gray-500' />
+                                                Nomor HP
+                                            </div>
                                         </label>
-                                        <span className='text-xs text-gray-500'>
-                                            Kosongkan jika tidak diubah
-                                        </span>
+                                        <input
+                                            name='no_hp'
+                                            value={formData.no_hp}
+                                            onChange={handleChange}
+                                            placeholder='08xxxxxxxxxx'
+                                            className='w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none transition-all duration-200'
+                                        />
                                     </div>
-                                    <input
-                                        type='password'
-                                        name='password'
-                                        value={formData.password || ''}
-                                        onChange={handleChange}
-                                        minLength={6}
-                                        className='w-full border rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition'
-                                    />
+
+                                    {/* Alamat */}
+                                    <div>
+                                        <label className='block text-sm font-medium text-gray-700 mb-2'>
+                                            <div className='flex items-center gap-2'>
+                                                <MapPin className='w-4 h-4 text-gray-500' />
+                                                Alamat
+                                            </div>
+                                        </label>
+                                        <textarea
+                                            name='alamat'
+                                            value={formData.alamat}
+                                            onChange={handleChange}
+                                            rows='3'
+                                            placeholder='Masukkan alamat lengkap'
+                                            className='w-full px-4 py-3 bg-gray-50 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent outline-none resize-none transition-all duration-200'
+                                        />
+                                    </div>
                                 </div>
 
-                                {/* Alamat */}
-                                <div className='space-y-2'>
-                                    <label className='text-sm font-medium text-gray-700 flex items-center gap-2'>
-                                        <MapPin className='w-4 h-4 text-gray-500' />
-                                        Alamat Lengkap
-                                    </label>
-                                    <textarea
-                                        name='alamat'
-                                        value={formData.alamat}
-                                        onChange={handleChange}
-                                        rows='3'
-                                        className='w-full border rounded-xl px-4 py-3 focus:ring-2 focus:ring-blue-500 focus:border-blue-500 transition resize-none'
-                                    />
-                                </div>
-
-                                {/* ACTION */}
-                                <div className='pt-5 border-t flex justify-end gap-3'>
-                                    <button
-                                        type='button'
-                                        onClick={() => setIsModalOpen(false)}
-                                        className='px-5 py-2.5 border rounded-xl text-gray-700 hover:bg-gray-100 transition flex items-center gap-2'
-                                    >
-                                        <X className='w-4 h-4' />
-                                        Batal
-                                    </button>
-
-                                    <button
-                                        type='submit'
-                                        className='px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl hover:from-blue-700 hover:to-indigo-700 shadow-lg hover:shadow-xl transition flex items-center gap-2'
-                                    >
-                                        <Check className='w-4 h-4' />
-                                        Simpan Perubahan
-                                    </button>
+                                {/* Modal Footer */}
+                                <div className='pt-4 border-t border-gray-200'>
+                                    <div className='flex justify-end gap-3'>
+                                        <button
+                                            type='button'
+                                            onClick={() =>
+                                                setIsModalOpen(false)
+                                            }
+                                            className='px-5 py-2.5 border border-gray-300 text-gray-700 hover:bg-gray-50 rounded-xl font-medium transition-colors duration-200'
+                                        >
+                                            Batal
+                                        </button>
+                                        <button
+                                            type='submit'
+                                            className='px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white rounded-xl font-medium shadow-lg hover:shadow-xl transition-all duration-200'
+                                        >
+                                            <div className='flex items-center gap-2'>
+                                                <Check className='w-4 h-4' />
+                                                Simpan Perubahan
+                                            </div>
+                                        </button>
+                                    </div>
                                 </div>
                             </form>
                         </div>
                     </div>
-                )}
-            </div>
-            <EditUserModal
-                open={isModalOpen}
-                onClose={() => setIsModalOpen(false)}
-                formData={formData}
-                onChange={handleChange}
-                onSubmit={handleSubmit}
-            />
+                </div>
+            )}
         </div>
     )
 }
