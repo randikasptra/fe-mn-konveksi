@@ -38,10 +38,7 @@ const OrderService = {
         if (status === "MENUNGGU_DP") status = "MENUNGGU_PEMBAYARAN";
         if (status === "MENUNGGU_PELUNASAN") status = "MENUNGGU_PEMBAYARAN";
 
-        return {
-          ...order,
-          status_pesanan: status,
-        };
+        return ordersData
       });
     } catch (error) {
       console.error("OrderService.getOrders error:", error);
@@ -99,7 +96,7 @@ const OrderService = {
   async updateOrderStatus(id_pesanan, status_pesanan, token) {
     try {
       const backendStatus = this.mapStatusToBackend(status_pesanan);
-      
+
       const response = await fetch(`https://be-mn-konveksi.vercel.app/api/pesanan/${id_pesanan}/status`, {
         method: "PATCH",
         headers: {
@@ -214,8 +211,8 @@ const OrderService = {
 
       throw new Error(
         error.response?.data?.message ||
-          error.message ||
-          "Gagal membatalkan pembayaran"
+        error.message ||
+        "Gagal membatalkan pembayaran"
       );
     }
   },
@@ -227,9 +224,9 @@ const OrderService = {
         jenis_pembayaran === "DP"
           ? Math.ceil(order.total_harga * 0.5)
           : order.total_harga -
-            (order.transaksi || [])
-              .filter((t) => t.midtrans_status === "settlement")
-              .reduce((sum, t) => sum + (Number(t.nominal) || 0), 0);
+          (order.transaksi || [])
+            .filter((t) => t.midtrans_status === "settlement")
+            .reduce((sum, t) => sum + (Number(t.nominal) || 0), 0);
 
       const response = await paymentService.createPayment({
         id_pesanan,
@@ -256,8 +253,8 @@ const OrderService = {
       console.error("Create payment error:", error);
       throw new Error(
         error.response?.data?.message ||
-          error.message ||
-          "Gagal membuat pembayaran"
+        error.message ||
+        "Gagal membuat pembayaran"
       );
     }
   },
@@ -278,7 +275,7 @@ const OrderService = {
       // Try different possible field names
       const nominalValue = t.nominal || t.jumlah || t.amount || t.total || 0;
       const nominal = Number(nominalValue) || 0;
-      
+
       console.log(`Transaction ${t.id_transaksi}:`, {
         raw: t,
         nominalField: t.nominal,
@@ -287,7 +284,7 @@ const OrderService = {
         detected: nominalValue,
         parsed: nominal
       });
-      
+
       return sum + nominal;
     }, 0);
 
@@ -303,7 +300,7 @@ const OrderService = {
       transactions: transaksi.map(t => ({
         id: t.id_transaksi,
         nominal: t.nominal,
-        jumlah: t.jumlah,
+          jumlah: t.jumlah,
         amount: t.amount,
         status: t.midtrans_status
       }))
@@ -322,26 +319,14 @@ const OrderService = {
   },
 
   // ================= HELPER: MAP STATUS TO FRONTEND =================
-  mapStatusToFrontend(backendStatus) {
-    const statusMap = {
-      DIBUAT: "DIBUAT",
-      MENUNGGU_DP: "MENUNGGU_DP",
-      MENUNGGU_PELUNASAN: "MENUNGGU_PELUNASAN",
-      DIPROSES: "DIPROSES",
-      SELESAI: "SELESAI",
-      DIBATALKAN: "DIBATALKAN",
-      MENUNGGU_PEMBAYARAN: "MENUNGGU_DP",
-    };
-
-    return statusMap[backendStatus] || backendStatus;
+  mapStatusToFrontend(status) {
+    return status;
   },
+
 
   // ================= HELPER: GET STATUS LABEL =================
   getStatusLabel(status) {
     const labels = {
-      DIBUAT: "Menunggu Konfirmasi",
-      MENUNGGU_DP: "Menunggu DP",
-      MENUNGGU_PELUNASAN: "Menunggu Pelunasan",
       MENUNGGU_PEMBAYARAN: "Menunggu Pembayaran",
       DIPROSES: "Sedang Diproduksi",
       SELESAI: "Selesai",
@@ -350,6 +335,7 @@ const OrderService = {
 
     return labels[status] || status;
   },
+
 
   // ================= HELPER: GET STATUS DESCRIPTION =================
   getStatusDescription(status) {
