@@ -280,7 +280,7 @@ export const orderService = {
 export const paymentService = {
   createPayment: async (data) => {
     try {
-      const response = await api.post("/transaksi", data);
+      const response = await api.post("/transaksi/create", data);
       return response.data;
     } catch (error) {
       console.error("Error in createPayment:", error);
