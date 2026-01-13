@@ -156,7 +156,7 @@ const OrderService = {
       const response = await fetch(
         `https://be-mn-konveksi.vercel.app/api/pesanan/${id_pesanan}/status`,
         {
-          method: "PATCH",
+          method: "OUT",
           headers: {
             Authorization: `Bearer ${token}`,
             "Content-Type": "application/json",
