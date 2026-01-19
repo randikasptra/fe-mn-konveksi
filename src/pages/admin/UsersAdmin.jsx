@@ -7,7 +7,6 @@ import {
   FiUser,
   FiMail,
   FiPhone,
-  FiMapPin,
   FiShield,
   FiCalendar,
   FiSearch,
